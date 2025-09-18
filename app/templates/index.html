@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaLupa 🔍 - Buscador de Contratos Gubernamentales</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>LaLupa 🔍</h1>
+            <p class="subtitle">Buscador de Contratos Gubernamentales de México</p>
+        </header>
+
+        <!-- Barra de búsqueda -->
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Buscar contratos..." autofocus>
+                <button id="searchBtn" onclick="buscar()">Buscar</button>
+            </div>
+            <div class="search-options">
+                <label><input type="radio" name="searchType" value="descripcion" checked> Descripción</label>
+                <label><input type="radio" name="searchType" value="titulo"> Título</label>
+                <label><input type="radio" name="searchType" value="empresa"> Empresa</label>
+                <label><input type="radio" name="searchType" value="rfc"> RFC</label>
+                <label><input type="radio" name="searchType" value="institucion"> Institución</label>
+                <label><input type="radio" name="searchType" value="todo"> Todo</label>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Buscando contratos...</p>
+        </div>
+
+        <!-- Área de resultados -->
+        <div id="resultsArea" class="hidden">
+            
+            <!-- Resumen de resultados -->
+            <div id="resultsSummary" class="results-summary"></div>
+            
+            <!-- Barra de filtros -->
+            <div id="filtersBar" class="filters-bar hidden">
+                <div class="filter-label">REFINAR BÚSQUEDA:</div>
+                <div class="filter-buttons" id="filterButtons"></div>
+                <div id="activeFilters" class="active-filters"></div>
+            </div>
+
+            <!-- Sección de empresas -->
+            <div id="empresasSection" class="results-section">
+                <h2>🏢 EMPRESAS</h2>
+                <div id="empresasList" class="grouped-list"></div>
+            </div>
+
+            <!-- Sección de instituciones -->
+            <div id="institucionesSection" class="results-section">
+                <h2>🏛️ INSTITUCIONES</h2>
+                <div id="institucionesList" class="grouped-list"></div>
+            </div>
+
+            <!-- Sección de contratos -->
+            <div id="contratosSection" class="results-section">
+                <h2>📄 CONTRATOS</h2>
+                <div id="contratosList" class="contracts-list"></div>
+            </div>
+        </div>
+
+        <!-- Mensaje de error -->
+        <div id="errorMessage" class="error-message hidden"></div>
+    </div>
+
+    <!-- Modal para filtros -->
+    <div id="filterModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" onclick="closeFilterModal()">&times;</span>
+            <h3 id="filterModalTitle">Filtrar por</h3>
+            <div id="filterModalBody"></div>
+            <button onclick="applyFilters()" class="apply-btn">Aplicar filtros</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

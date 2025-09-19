@@ -1,43 +1,68 @@
-// static/js/app.js
-
-// Variables globales
-let currentResults = null;
+// ===========================
+// VARIABLES GLOBALES
+// ===========================
+let currentPage = 1;
+let totalPages = 1;
+let totalCount = 0;
+let currentContracts = null;
+let isLoadingMore = false;
+let lastQuery = '';
+let lastSearchType = 'descripcion';
 let activeFilters = {};
-let currentFilterType = null;
+const perPage = 20;
 
-// Event listeners al cargar la página
+// ===========================
+// Inicialización
+// ===========================
 document.addEventListener('DOMContentLoaded', function() {
-    // Enter para buscar
+    // Event listener para buscar con Enter
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             buscar();
         }
     });
+
+    // Observer para scroll infinito
+    const sentinel = document.getElementById('scrollSentinel');
+    if (sentinel) {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoadingMore && currentPage < totalPages) {
+                cargarContratos(currentPage + 1, true);
+            }
+        });
+        observer.observe(sentinel);
+    }
 });
 
+// ===========================
 // Función principal de búsqueda
+// ===========================
 async function buscar() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) {
-        alert('Por favor ingresa un término de búsqueda');
+        mostrarError('Por favor ingresa un término de búsqueda');
         return;
     }
-    
+
+    // Obtener tipo de búsqueda seleccionado
     const searchType = document.querySelector('input[name="searchType"]:checked').value;
-    
-    // Limpiar filtros anteriores
-    activeFilters = {};
-    
+
+    // Guardar para uso posterior
+    lastQuery = query;
+    lastSearchType = searchType;
+    activeFilters = {}; // Reset filtros
+    currentPage = 1;
+
     // Mostrar loading
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('resultsArea').classList.add('hidden');
     document.getElementById('errorMessage').classList.add('hidden');
-    
+
     try {
         const response = await fetch('/api/search', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 query: query,
@@ -45,53 +70,78 @@ async function buscar() {
                 filters: activeFilters
             })
         });
-        
+
+        // Ocultar loading
+        document.getElementById('loading').classList.add('hidden');
+
         if (!response.ok) {
-            throw new Error('Error en la búsqueda');
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Debug log para verificar la estructura
+        console.log('Datos recibidos:', data);
+
+        // Verificar si hay resultados
+        if (!data || data.total === 0) {
+            mostrarError('No se encontraron resultados para tu búsqueda');
+            return;
+        }
+
+        // Mostrar resultados
+        document.getElementById('resultsArea').classList.remove('hidden');
+        
+        // Renderizar el resumen de resultados con las propiedades correctas
+        renderResultsSummary(data);
+        
+        // Renderizar los agregados (proveedores e instituciones)
+        renderAggregates(data);
+        
+        // Renderizar contratos
+        if (data.contratos && data.contratos.length > 0) {
+            renderContratos(data.contratos, false);
+            document.getElementById('contratosSection').classList.remove('hidden');
         }
         
-        const data = await response.json();
-        currentResults = data;
-        
-        document.getElementById('loading').classList.add('hidden');
-        mostrarResultados(data);
-        
+        // Renderizar filtros si están disponibles
+        if (data.filtros_disponibles) {
+            renderFilters(data.filtros_disponibles);
+        }
+
     } catch (error) {
+        console.error('Error en búsqueda:', error);
         document.getElementById('loading').classList.add('hidden');
-        mostrarError('Error al realizar la búsqueda. Por favor intenta de nuevo.');
-        console.error('Error:', error);
+        mostrarError(error.message || 'Error al realizar la búsqueda. Por favor intenta de nuevo.');
     }
 }
 
-// Mostrar resultados
-function mostrarResultados(data) {
-    if (data.total === 0) {
-        mostrarError('No se encontraron resultados para tu búsqueda');
-        return;
-    }
-    
-    // Mostrar resumen
+// ===========================
+// Render del resumen de resultados
+// ===========================
+function renderResultsSummary(data) {
     const summaryHtml = `
         <strong>Resultados para:</strong> "${data.query}" | 
+        <strong>Tipo de búsqueda:</strong> ${data.search_type} | 
         <strong>Total:</strong> ${data.total.toLocaleString()} contratos | 
         <strong>Monto total:</strong> ${formatMoney(data.monto_total)}
     `;
     document.getElementById('resultsSummary').innerHTML = summaryHtml;
-    
-    // Configurar filtros si hay resultados
-    if (data.filtros_disponibles && Object.keys(data.filtros_disponibles).length > 0) {
-        configurarFiltros(data.filtros_disponibles);
-        document.getElementById('filtersBar').classList.remove('hidden');
-    }
-    
-    // Mostrar proveedores (antes empresas)
+}
+
+// ===========================
+// Render de agregados
+// ===========================
+function renderAggregates(data) {
+    // Mostrar proveedores
     if (data.proveedores && data.proveedores.length > 0) {
         mostrarProveedores(data.proveedores);
         document.getElementById('empresasSection').classList.remove('hidden');
     } else {
         document.getElementById('empresasSection').classList.add('hidden');
     }
-    
+
     // Mostrar instituciones
     if (data.instituciones && data.instituciones.length > 0) {
         mostrarInstituciones(data.instituciones);
@@ -99,85 +149,31 @@ function mostrarResultados(data) {
     } else {
         document.getElementById('institucionesSection').classList.add('hidden');
     }
-    
-    // Mostrar contratos
-    if (data.contratos && data.contratos.length > 0) {
-        mostrarContratos(data.contratos);
-        document.getElementById('contratosSection').classList.remove('hidden');
-    } else {
-        document.getElementById('contratosSection').classList.add('hidden');
-    }
-    
-    // Mostrar área de resultados
-    document.getElementById('resultsArea').classList.remove('hidden');
 }
 
-// Mostrar empresas
-function mostrarProveedores(proveedores) {
+// ===========================
+// Render de contratos
+// ===========================
+function renderContratos(contratos, append = false) {
     let html = '';
-    
-    proveedores.forEach(proveedor => {
-        html += `
-            <div class="group-item" onclick="verProveedor('${proveedor.rfc}')">
-                <div class="group-info">
-                    <div class="group-name">${proveedor.nombre || 'Sin nombre'}</div>
-                    <div class="group-details">
-                        RFC: ${proveedor.rfc} | ${proveedor.num_contratos} contratos
-                    </div>
-                </div>
-                <div class="group-amount">${formatMoney(proveedor.monto_total)}</div>
-            </div>
-        `;
-    });
-    
-    document.getElementById('empresasList').innerHTML = html;
-}
 
-// Mostrar instituciones
-function mostrarInstituciones(instituciones) {
-    let html = '';
-    
-    instituciones.forEach(inst => {
-        html += `
-            <div class="group-item" onclick="verInstitucion('${inst.siglas}')">
-                <div class="group-info">
-                    <div class="group-name">${inst.nombre || inst.siglas}</div>
-                    <div class="group-details">
-                        ${inst.siglas} | ${inst.num_contratos} contratos
-                    </div>
-                </div>
-                <div class="group-amount">${formatMoney(inst.monto_total)}</div>
-            </div>
-        `;
-    });
-    
-    document.getElementById('institucionesList').innerHTML = html;
-}
-
-// Mostrar contratos
-function mostrarContratos(contratos) {
-    let html = '';
-    
     contratos.forEach(contrato => {
         const titulo = contrato.titulo || contrato.descripcion || 'Sin título';
         const tituloCorto = titulo.length > 100 ? titulo.substring(0, 100) + '...' : titulo;
-        
-        // Crear botón de CompraNet si existe URL
+
         const botonCompranet = contrato.url_compranet && contrato.url_compranet.startsWith('http') 
-            ? `<a href="${contrato.url_compranet}" target="_blank" class="btn-compranet" title="Ver en CompraNet">
-                🔗 CompraNet
-               </a>` 
+            ? `<a href="${contrato.url_compranet}" target="_blank" class="btn-compranet" title="Ver en CompraNet">🔗 CompraNet</a>` 
             : '';
-        
+
         html += `
             <div class="contract-item">
                 <div class="contract-header">
                     <div style="flex: 1;">
                         <div class="contract-title">${tituloCorto}</div>
                         <div class="contract-details">
-                            <strong>${contrato.institucion || contrato.siglas_institucion}</strong> | 
+                            <strong>${contrato.institucion || contrato.siglas_institucion || ''}</strong> | 
                             ${contrato.proveedor || 'Sin proveedor'}<br>
-                            Código: ${contrato.codigo_contrato} | 
+                            Código: ${contrato.codigo_contrato || 'N/A'} | 
                             ${contrato.tipo_procedimiento || ''} | 
                             ${contrato.anio || ''}
                         </div>
@@ -188,206 +184,270 @@ function mostrarContratos(contratos) {
             </div>
         `;
     });
-    
-    document.getElementById('contratosList').innerHTML = html;
+
+    if (append) {
+        document.getElementById('contratosList').insertAdjacentHTML('beforeend', html);
+    } else {
+        document.getElementById('contratosList').innerHTML = html;
+    }
 }
 
-// Configurar filtros
-function configurarFiltros(filtros) {
+// ===========================
+// Mostrar proveedores
+// ===========================
+function mostrarProveedores(proveedores) {
     let html = '';
-    
-    // Crear botones de filtro
-    if (filtros.instituciones && Object.keys(filtros.instituciones).length > 0) {
-        html += `<button class="filter-btn" onclick="abrirFiltro('institucion')">Institución ▼</button>`;
-    }
-    if (filtros.tipos && Object.keys(filtros.tipos).length > 0) {
-        html += `<button class="filter-btn" onclick="abrirFiltro('tipo')">Tipo ▼</button>`;
-    }
-    if (filtros.procedimientos && Object.keys(filtros.procedimientos).length > 0) {
-        html += `<button class="filter-btn" onclick="abrirFiltro('procedimiento')">Procedimiento ▼</button>`;
-    }
-    if (filtros.anios && Object.keys(filtros.anios).length > 0) {
-        html += `<button class="filter-btn" onclick="abrirFiltro('anio')">Año ▼</button>`;
-    }
-    if (filtros.estatus && Object.keys(filtros.estatus).length > 0) {
-        html += `<button class="filter-btn" onclick="abrirFiltro('estatus')">Estado ▼</button>`;
-    }
-    
-    document.getElementById('filterButtons').innerHTML = html;
+    proveedores.forEach(proveedor => {
+        const rfc = proveedor.rfc && proveedor.rfc !== 'RFC Genérico' 
+            ? proveedor.rfc 
+            : 'Sin RFC';
+        
+        html += `
+            <div class="group-item">
+                <div class="group-info">
+                    <div class="group-name">${proveedor.nombre || 'Sin nombre'}</div>
+                    <div class="group-details">
+                        RFC: ${rfc} | ${proveedor.num_contratos} contratos
+                    </div>
+                </div>
+                <div class="group-amount">${formatMoney(proveedor.monto_total)}</div>
+            </div>
+        `;
+    });
+    document.getElementById('empresasList').innerHTML = html;
 }
 
-// Abrir modal de filtro
-function abrirFiltro(tipo) {
-    currentFilterType = tipo;
+// ===========================
+// Mostrar instituciones
+// ===========================
+function mostrarInstituciones(instituciones) {
+    let html = '';
+    instituciones.forEach(inst => {
+        html += `
+            <div class="group-item">
+                <div class="group-info">
+                    <div class="group-name">${inst.nombre || inst.siglas}</div>
+                    <div class="group-details">
+                        ${inst.siglas} | ${inst.num_contratos} contratos
+                    </div>
+                </div>
+                <div class="group-amount">${formatMoney(inst.monto_total)}</div>
+            </div>
+        `;
+    });
+    document.getElementById('institucionesList').innerHTML = html;
+}
+
+// ===========================
+// Render de filtros
+// ===========================
+function renderFilters(filtros) {
+    if (!filtros || Object.keys(filtros).length === 0) {
+        document.getElementById('filtersBar').classList.add('hidden');
+        return;
+    }
+
+    let buttonsHtml = '';
+    
+    // Instituciones
+    if (filtros.instituciones && Object.keys(filtros.instituciones).length > 0) {
+        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('instituciones', ${JSON.stringify(filtros.instituciones).replace(/"/g, '&quot;')})">
+            Institución (${Object.keys(filtros.instituciones).length})
+        </button>`;
+    }
+    
+    // Tipos de contratación
+    if (filtros.tipos && Object.keys(filtros.tipos).length > 0) {
+        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('tipos', ${JSON.stringify(filtros.tipos).replace(/"/g, '&quot;')})">
+            Tipo (${Object.keys(filtros.tipos).length})
+        </button>`;
+    }
+    
+    // Procedimientos
+    if (filtros.procedimientos && Object.keys(filtros.procedimientos).length > 0) {
+        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('procedimientos', ${JSON.stringify(filtros.procedimientos).replace(/"/g, '&quot;')})">
+            Procedimiento (${Object.keys(filtros.procedimientos).length})
+        </button>`;
+    }
+    
+    // Años
+    if (filtros.anios && Object.keys(filtros.anios).length > 0) {
+        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('anios', ${JSON.stringify(filtros.anios).replace(/"/g, '&quot;')})">
+            Año (${Object.keys(filtros.anios).length})
+        </button>`;
+    }
+    
+    // Estatus
+    if (filtros.estatus && Object.keys(filtros.estatus).length > 0) {
+        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('estatus', ${JSON.stringify(filtros.estatus).replace(/"/g, '&quot;')})">
+            Estatus (${Object.keys(filtros.estatus).length})
+        </button>`;
+    }
+
+    document.getElementById('filterButtons').innerHTML = buttonsHtml;
+    document.getElementById('filtersBar').classList.remove('hidden');
+}
+
+// ===========================
+// Modal de filtros
+// ===========================
+let currentFilterType = '';
+let currentFilterOptions = {};
+
+function openFilterModal(type, options) {
+    currentFilterType = type;
+    currentFilterOptions = options;
+    
     const modal = document.getElementById('filterModal');
     const modalTitle = document.getElementById('filterModalTitle');
     const modalBody = document.getElementById('filterModalBody');
     
     // Configurar título
-    const titulos = {
-        'institucion': 'Filtrar por Institución',
-        'tipo': 'Filtrar por Tipo',
-        'procedimiento': 'Filtrar por Procedimiento',
-        'anio': 'Filtrar por Año',
-        'estatus': 'Filtrar por Estado'
+    const titles = {
+        'instituciones': 'Filtrar por Institución',
+        'tipos': 'Filtrar por Tipo de Contratación',
+        'procedimientos': 'Filtrar por Tipo de Procedimiento',
+        'anios': 'Filtrar por Año',
+        'estatus': 'Filtrar por Estatus'
     };
-    modalTitle.textContent = titulos[tipo];
+    modalTitle.textContent = titles[type] || 'Filtrar';
     
-    // Configurar opciones
-    let html = '';
-    const filtrosData = {
-        'institucion': currentResults.filtros_disponibles.instituciones,
-        'tipo': currentResults.filtros_disponibles.tipos,
-        'procedimiento': currentResults.filtros_disponibles.procedimientos,
-        'anio': currentResults.filtros_disponibles.anios,
-        'estatus': currentResults.filtros_disponibles.estatus
-    };
-    
-    const opciones = filtrosData[tipo];
-    if (opciones) {
-        Object.entries(opciones).forEach(([valor, cantidad]) => {
-            const isChecked = activeFilters[tipo] && activeFilters[tipo].includes(valor);
-            html += `
-                <div class="filter-option">
-                    <label>
-                        <input type="checkbox" value="${valor}" ${isChecked ? 'checked' : ''}>
-                        ${valor}
-                        <span class="filter-count">(${cantidad})</span>
-                    </label>
-                </div>
-            `;
-        });
+    // Generar checkboxes
+    let bodyHtml = '<div class="filter-options">';
+    for (const [key, count] of Object.entries(options)) {
+        const isChecked = activeFilters[type] && activeFilters[type].includes(key) ? 'checked' : '';
+        bodyHtml += `
+            <label class="filter-option">
+                <input type="checkbox" value="${key}" ${isChecked}>
+                <span>${key} (${count})</span>
+            </label>
+        `;
     }
+    bodyHtml += '</div>';
+    modalBody.innerHTML = bodyHtml;
     
-    modalBody.innerHTML = html;
     modal.classList.remove('hidden');
 }
 
-// Cerrar modal de filtro
 function closeFilterModal() {
     document.getElementById('filterModal').classList.add('hidden');
 }
 
-// Aplicar filtros
 function applyFilters() {
     const checkboxes = document.querySelectorAll('#filterModalBody input[type="checkbox"]:checked');
-    const valores = Array.from(checkboxes).map(cb => cb.value);
+    const selectedValues = Array.from(checkboxes).map(cb => cb.value);
     
-    if (valores.length > 0) {
-        // Los años ya vienen como strings, perfecto para el backend
-        activeFilters[currentFilterType] = valores;
+    if (selectedValues.length > 0) {
+        activeFilters[currentFilterType] = selectedValues;
     } else {
         delete activeFilters[currentFilterType];
     }
     
     closeFilterModal();
-    mostrarFiltrosActivos();
-    buscarConFiltros();
+    updateActiveFiltersDisplay();
+    buscar(); // Realizar nueva búsqueda con filtros
 }
 
-// Mostrar filtros activos
-function mostrarFiltrosActivos() {
-    let html = '';
+function updateActiveFiltersDisplay() {
+    const container = document.getElementById('activeFilters');
+    if (Object.keys(activeFilters).length === 0) {
+        container.innerHTML = '';
+        return;
+    }
     
-    Object.entries(activeFilters).forEach(([tipo, valores]) => {
-        valores.forEach(valor => {
-            html += `
-                <div class="filter-chip">
-                    ${valor}
-                    <span class="remove" onclick="removerFiltro('${tipo}', '${valor}')">×</span>
-                </div>
-            `;
+    let html = '<span>Filtros activos: </span>';
+    for (const [type, values] of Object.entries(activeFilters)) {
+        values.forEach(value => {
+            html += `<span class="active-filter-tag">${value} 
+                <button onclick="removeFilter('${type}', '${value}')">&times;</button>
+            </span>`;
         });
-    });
-    
-    document.getElementById('activeFilters').innerHTML = html;
+    }
+    html += `<button class="clear-filters-btn" onclick="clearAllFilters()">Limpiar todos</button>`;
+    container.innerHTML = html;
 }
 
-// Remover filtro
-function removerFiltro(tipo, valor) {
-    if (activeFilters[tipo]) {
-        activeFilters[tipo] = activeFilters[tipo].filter(v => v !== valor);
-        if (activeFilters[tipo].length === 0) {
-            delete activeFilters[tipo];
+function removeFilter(type, value) {
+    if (activeFilters[type]) {
+        activeFilters[type] = activeFilters[type].filter(v => v !== value);
+        if (activeFilters[type].length === 0) {
+            delete activeFilters[type];
         }
     }
-    mostrarFiltrosActivos();
-    buscarConFiltros();
+    updateActiveFiltersDisplay();
+    buscar();
 }
 
-// Buscar con filtros aplicados
-async function buscarConFiltros() {
-    const query = document.getElementById('searchInput').value.trim();
-    const searchType = document.querySelector('input[name="searchType"]:checked').value;
-    
-    document.getElementById('loading').classList.remove('hidden');
-    
-    try {
-        const response = await fetch('/api/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                query: query,
-                search_type: searchType,
-                filters: activeFilters
-            })
-        });
-        
-        const data = await response.json();
-        currentResults = data;
-        
-        document.getElementById('loading').classList.add('hidden');
-        mostrarResultados(data);
-        
-    } catch (error) {
-        document.getElementById('loading').classList.add('hidden');
-        mostrarError('Error al aplicar filtros');
-    }
+function clearAllFilters() {
+    activeFilters = {};
+    updateActiveFiltersDisplay();
+    buscar();
 }
 
-// Ver detalle de empresa
-async function verProveedor(rfc) {
-    try {
-        const response = await fetch(`/api/empresa/${rfc}`);
-        const data = await response.json();
-        
-        // Por ahora solo mostrar alert, después haremos una vista detallada
-        alert(`Proveedor: ${data.empresa}\nTotal contratos: ${data.total_contratos}\nMonto total: ${formatMoney(data.monto_total)}`);
-        
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
-
-// Ver detalle de institución
-async function verInstitucion(siglas) {
-    try {
-        const response = await fetch(`/api/institucion/${siglas}`);
-        const data = await response.json();
-        
-        // Por ahora solo mostrar alert, después haremos una vista detallada
-        alert(`Institución: ${data.institucion}\nTotal contratos: ${data.total_contratos}\nMonto total: ${formatMoney(data.monto_total)}`);
-        
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
-
-// Formatear moneda
+// ===========================
+// Funciones auxiliares
+// ===========================
 function formatMoney(amount) {
-    if (amount === null || amount === undefined) return '$0.00';
-    return '$' + amount.toLocaleString('es-MX', {
+    if (amount === null || amount === undefined || isNaN(amount)) return '$0.00';
+    return '$' + Number(amount).toLocaleString('es-MX', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
 }
 
-// Mostrar error
 function mostrarError(mensaje) {
     const errorDiv = document.getElementById('errorMessage');
     errorDiv.textContent = mensaje;
     errorDiv.classList.remove('hidden');
     document.getElementById('resultsArea').classList.add('hidden');
+}
+
+// ===========================
+// Cargar contratos adicionales (scroll infinito)
+// ===========================
+async function cargarContratos(page, append = false) {
+    if (isLoadingMore) return;
+    
+    try {
+        isLoadingMore = true;
+        
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: lastQuery,
+                search_type: lastSearchType,
+                filters: activeFilters,
+                page: page,
+                per_page: perPage
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.contratos && data.contratos.length > 0) {
+            renderContratos(data.contratos, append);
+            currentPage = page;
+        }
+        
+        isLoadingMore = false;
+        
+    } catch (error) {
+        console.error('Error cargando más contratos:', error);
+        isLoadingMore = false;
+    }
+}
+
+// Cerrar modal al hacer clic fuera
+window.onclick = function(event) {
+    const modal = document.getElementById('filterModal');
+    if (event.target == modal) {
+        closeFilterModal();
+    }
 }

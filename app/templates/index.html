@@ -18,7 +18,7 @@
         <div class="search-container">
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Buscar contratos..." autofocus>
-                <button id="searchBtn" onclick="buscar()">Buscar</button>
+                <button id="searchBtn" type="button" onclick="buscar()">Buscar</button>
             </div>
             <div class="search-options">
                 <label><input type="radio" name="searchType" value="descripcion" checked> Descripción</label>
@@ -30,7 +30,7 @@
             </div>
         </div>
 
-        <!-- Loading -->
+        <!-- Loading global -->
         <div id="loading" class="loading hidden">
             <div class="spinner"></div>
             <p>Buscando contratos...</p>
@@ -65,6 +65,8 @@
             <div id="contratosSection" class="results-section">
                 <h2>📄 CONTRATOS</h2>
                 <div id="contratosList" class="contracts-list"></div>
+                <!-- Sentinel para scroll infinito -->
+                <div id="scrollSentinel"></div>
             </div>
         </div>
 
@@ -78,7 +80,7 @@
             <span class="close" onclick="closeFilterModal()">&times;</span>
             <h3 id="filterModalTitle">Filtrar por</h3>
             <div id="filterModalBody"></div>
-            <button onclick="applyFilters()" class="apply-btn">Aplicar filtros</button>
+            <button type="button" onclick="applyFilters()" class="apply-btn">Aplicar filtros</button>
         </div>
     </div>
 

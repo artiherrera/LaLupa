@@ -1,0 +1,128 @@
+-- =====================================================
+-- ARCHIVO: fix_sql.txt
+-- QUERIES DE CORRECCIÓN PARA LA BASE DE DATOS LALUPA
+-- =====================================================
+
+-- =====================================================
+-- 1. CONVERTIR TEXTO A MAYÚSCULAS
+-- =====================================================
+
+-- Convertir nombres de proveedores a mayúsculas
+UPDATE contratos.contratos 
+SET proveedor_contratista = UPPER(proveedor_contratista)
+WHERE proveedor_contratista != UPPER(proveedor_contratista);
+
+-- Convertir instituciones a mayúsculas
+UPDATE contratos.contratos 
+SET institucion = UPPER(institucion)
+WHERE institucion != UPPER(institucion);
+
+-- Convertir tipo_contratacion a mayúsculas
+UPDATE contratos.contratos 
+SET tipo_contratacion = UPPER(tipo_contratacion)
+WHERE tipo_contratacion != UPPER(tipo_contratacion);
+
+-- Convertir tipo_procedimiento a mayúsculas
+UPDATE contratos.contratos 
+SET tipo_procedimiento = UPPER(tipo_procedimiento)
+WHERE tipo_procedimiento != UPPER(tipo_procedimiento);
+
+-- =====================================================
+-- 2. CORREGIR RFCs GENÉRICOS CON RFCs REALES
+-- =====================================================
+
+-- Primero, identificar proveedores con RFC real y genérico
+WITH proveedores_con_rfc_real AS (
+    SELECT DISTINCT 
+        proveedor_contratista,
+        rfc as rfc_real
+    FROM contratos.contratos
+    WHERE rfc IS NOT NULL 
+    AND rfc != 'XAXX010101000'
+    AND proveedor_contratista IS NOT NULL
+)
+-- Actualizar los registros con RFC genérico cuando existe un RFC real
+UPDATE contratos.contratos c
+SET rfc = p.rfc_real
+FROM proveedores_con_rfc_real p
+WHERE c.proveedor_contratista = p.proveedor_contratista
+AND c.rfc = 'XAXX010101000';
+
+-- Verificar cuántos registros se actualizarían (ejecutar antes del UPDATE para verificar)
+WITH proveedores_con_rfc_real AS (
+    SELECT DISTINCT 
+        proveedor_contratista,
+        rfc as rfc_real
+    FROM contratos.contratos
+    WHERE rfc IS NOT NULL 
+    AND rfc != 'XAXX010101000'
+    AND proveedor_contratista IS NOT NULL
+)
+SELECT 
+    c.proveedor_contratista,
+    c.rfc as rfc_actual,
+    p.rfc_real as rfc_correcto,
+    COUNT(*) as contratos_a_actualizar
+FROM contratos.contratos c
+INNER JOIN proveedores_con_rfc_real p 
+    ON c.proveedor_contratista = p.proveedor_contratista
+WHERE c.rfc = 'XAXX010101000'
+GROUP BY c.proveedor_contratista, c.rfc, p.rfc_real
+ORDER BY COUNT(*) DESC;
+
+-- =====================================================
+-- 3. CASOS ESPECÍFICOS DE CORRECCIÓN
+-- =====================================================
+
+-- Corregir específicamente el caso de Sabina Berman
+UPDATE contratos.contratos
+SET rfc = 'BEGS550821450'
+WHERE proveedor_contratista = 'SABINA BERMAN GOLDBERG'
+AND rfc = 'XAXX010101000';
+
+-- =====================================================
+-- 4. VERIFICACIONES POST-CORRECCIÓN
+-- =====================================================
+
+-- Verificar que no queden duplicados de RFC para el mismo proveedor
+SELECT 
+    proveedor_contratista,
+    COUNT(DISTINCT rfc) as rfcs_diferentes,
+    STRING_AGG(DISTINCT rfc, ', ') as rfcs
+FROM contratos.contratos
+WHERE proveedor_contratista IS NOT NULL
+GROUP BY proveedor_contratista
+HAVING COUNT(DISTINCT rfc) > 1
+ORDER BY COUNT(DISTINCT rfc) DESC
+LIMIT 20;
+
+-- Contar cuántos registros siguen con RFC genérico
+SELECT 
+    COUNT(*) as total_con_rfc_generico,
+    COUNT(DISTINCT proveedor_contratista) as proveedores_unicos
+FROM contratos.contratos
+WHERE rfc = 'XAXX010101000';
+
+-- =====================================================
+-- 5. ÍNDICES RECOMENDADOS PARA MEJORAR PERFORMANCE
+-- =====================================================
+
+-- Índice en año (ya que es VARCHAR)
+CREATE INDEX IF NOT EXISTS idx_contratos_anio_fuente 
+ON contratos.contratos(anio_fuente);
+
+-- Índice en RFC
+CREATE INDEX IF NOT EXISTS idx_contratos_rfc 
+ON contratos.contratos(rfc);
+
+-- Índice en siglas_institucion
+CREATE INDEX IF NOT EXISTS idx_contratos_siglas_institucion 
+ON contratos.contratos(siglas_institucion);
+
+-- Índice en proveedor_contratista
+CREATE INDEX IF NOT EXISTS idx_contratos_proveedor 
+ON contratos.contratos(proveedor_contratista);
+
+-- Índice compuesto para búsquedas comunes
+CREATE INDEX IF NOT EXISTS idx_contratos_busqueda 
+ON contratos.contratos(proveedor_contratista, siglas_institucion, anio_fuente);

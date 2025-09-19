@@ -92,24 +92,24 @@ class Contrato(db.Model):
     def to_dict(self):
         """Convierte el objeto a diccionario para JSON"""
         return {
-            'codigo_contrato': self.codigo_contrato,
-            'codigo_expediente': self.codigo_expediente,
-            'titulo': self.titulo_contrato,
-            'descripcion': self.descripcion_contrato,
-            'tipo_contratacion': self.tipo_contratacion,
-            'tipo_procedimiento': self.tipo_procedimiento,
-            'proveedor': self.proveedor_contratista,
-            'rfc': self.rfc,
-            'institucion': self.institucion,
-            'siglas_institucion': self.siglas_institucion,
-            'importe': self.get_importe_numerico(),
-            'moneda': self.moneda,
-            'fecha_inicio': self.fecha_inicio_contrato.isoformat() if self.fecha_inicio_contrato else None,
-            'fecha_fin': self.fecha_fin_contrato.isoformat() if self.fecha_fin_contrato else None,
-            'estatus': self.estatus_contrato,
-            'url_compranet': self.direccion_anuncio,
-            'anio': self.anio_fuente
-        }
+                'codigo_contrato': self.codigo_contrato,
+                'codigo_expediente': self.codigo_expediente,
+                'titulo': self.titulo_contrato,
+                'descripcion': self.descripcion_contrato,
+                'tipo_contratacion': self.tipo_contratacion,
+                'tipo_procedimiento': self.tipo_procedimiento,
+                'proveedor': self.proveedor_contratista,  # Cambio de nombre
+                'rfc': self.rfc,
+                'institucion': self.institucion,
+                'siglas_institucion': self.siglas_institucion,
+                'importe': self.get_importe_numerico(),
+                'moneda': self.moneda,
+                'fecha_inicio': self.fecha_inicio_contrato.isoformat() if self.fecha_inicio_contrato else None,
+                'fecha_fin': self.fecha_fin_contrato.isoformat() if self.fecha_fin_contrato else None,
+                'estatus': self.estatus_contrato,
+                'url_compranet': self.direccion_anuncio,  # URL de CompraNet
+                'anio': self.anio_fuente
+    }
 
 # ===========================
 # RUTAS PRINCIPALES
@@ -344,13 +344,10 @@ def apply_filters(query, filters):
         query = query.filter(Contrato.tipo_procedimiento.in_(filters['procedimiento']))
     
     if filters.get('anio'):
-        # Convertir años a enteros, manejando posibles errores
-        try:
-            anos = [int(a) for a in filters['anio']]
-            query = query.filter(Contrato.anio_fuente.in_(anos))
-        except ValueError:
-            # Si hay un error de conversión, ignorar el filtro
-            pass
+        # FIX: anio_fuente es VARCHAR, no necesita conversión
+        # Los años vienen como strings del frontend, perfecto para comparar
+        anos_str = [str(a) for a in filters['anio']]
+        query = query.filter(Contrato.anio_fuente.in_(anos_str))
     
     if filters.get('estatus'):
         query = query.filter(Contrato.estatus_contrato.in_(filters['estatus']))
@@ -360,24 +357,36 @@ def apply_filters(query, filters):
 def procesar_resultados(contratos, query_text, search_type):
     """Procesa y agrupa los resultados de búsqueda"""
     # Diccionarios para agrupar
-    empresas_dict = {}
+    proveedores_dict = {}  # Cambio de nombre
     instituciones_dict = {}
     
     # Procesar cada contrato
     for contrato in contratos:
         importe = contrato.get_importe_numerico()
         
-        # Agrupar por empresa
+        # Agrupar por proveedor (antes empresa)
         if contrato.rfc and contrato.rfc != 'XAXX010101000':
-            if contrato.rfc not in empresas_dict:
-                empresas_dict[contrato.rfc] = {
+            if contrato.rfc not in proveedores_dict:
+                proveedores_dict[contrato.rfc] = {
                     'nombre': contrato.proveedor_contratista,
                     'rfc': contrato.rfc,
                     'monto_total': 0,
                     'num_contratos': 0
                 }
-            empresas_dict[contrato.rfc]['monto_total'] += importe
-            empresas_dict[contrato.rfc]['num_contratos'] += 1
+            proveedores_dict[contrato.rfc]['monto_total'] += importe
+            proveedores_dict[contrato.rfc]['num_contratos'] += 1
+        elif contrato.proveedor_contratista and not contrato.rfc:
+            # Para proveedores sin RFC, usar el nombre como clave
+            key = f"sin_rfc_{contrato.proveedor_contratista}"
+            if key not in proveedores_dict:
+                proveedores_dict[key] = {
+                    'nombre': contrato.proveedor_contratista,
+                    'rfc': 'Sin RFC',
+                    'monto_total': 0,
+                    'num_contratos': 0
+                }
+            proveedores_dict[key]['monto_total'] += importe
+            proveedores_dict[key]['num_contratos'] += 1
         
         # Agrupar por institución
         if contrato.siglas_institucion:
@@ -392,8 +401,8 @@ def procesar_resultados(contratos, query_text, search_type):
             instituciones_dict[contrato.siglas_institucion]['num_contratos'] += 1
     
     # Convertir a listas y ordenar por monto
-    empresas = sorted(
-        empresas_dict.values(),
+    proveedores = sorted(
+        proveedores_dict.values(),
         key=lambda x: x['monto_total'],
         reverse=True
     )[:20]  # Top 20
@@ -422,7 +431,7 @@ def procesar_resultados(contratos, query_text, search_type):
         'search_type': search_type,
         'total': len(contratos),
         'monto_total': monto_total,
-        'empresas': empresas,
+        'proveedores': proveedores,  # Cambio de nombre
         'instituciones': instituciones,
         'contratos': [c.to_dict() for c in contratos_ordenados],
         'filtros_disponibles': filtros_disponibles,

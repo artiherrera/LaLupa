@@ -84,9 +84,9 @@ function mostrarResultados(data) {
         document.getElementById('filtersBar').classList.remove('hidden');
     }
     
-    // Mostrar empresas
-    if (data.empresas && data.empresas.length > 0) {
-        mostrarEmpresas(data.empresas);
+    // Mostrar proveedores (antes empresas)
+    if (data.proveedores && data.proveedores.length > 0) {
+        mostrarProveedores(data.proveedores);
         document.getElementById('empresasSection').classList.remove('hidden');
     } else {
         document.getElementById('empresasSection').classList.add('hidden');
@@ -113,19 +113,19 @@ function mostrarResultados(data) {
 }
 
 // Mostrar empresas
-function mostrarEmpresas(empresas) {
+function mostrarProveedores(proveedores) {
     let html = '';
     
-    empresas.forEach(empresa => {
+    proveedores.forEach(proveedor => {
         html += `
-            <div class="group-item" onclick="verEmpresa('${empresa.rfc}')">
+            <div class="group-item" onclick="verProveedor('${proveedor.rfc}')">
                 <div class="group-info">
-                    <div class="group-name">${empresa.nombre || 'Sin nombre'}</div>
+                    <div class="group-name">${proveedor.nombre || 'Sin nombre'}</div>
                     <div class="group-details">
-                        RFC: ${empresa.rfc} | ${empresa.num_contratos} contratos
+                        RFC: ${proveedor.rfc} | ${proveedor.num_contratos} contratos
                     </div>
                 </div>
-                <div class="group-amount">${formatMoney(empresa.monto_total)}</div>
+                <div class="group-amount">${formatMoney(proveedor.monto_total)}</div>
             </div>
         `;
     });
@@ -162,6 +162,13 @@ function mostrarContratos(contratos) {
         const titulo = contrato.titulo || contrato.descripcion || 'Sin título';
         const tituloCorto = titulo.length > 100 ? titulo.substring(0, 100) + '...' : titulo;
         
+        // Crear botón de CompraNet si existe URL
+        const botonCompranet = contrato.url_compranet && contrato.url_compranet.startsWith('http') 
+            ? `<a href="${contrato.url_compranet}" target="_blank" class="btn-compranet" title="Ver en CompraNet">
+                🔗 CompraNet
+               </a>` 
+            : '';
+        
         html += `
             <div class="contract-item">
                 <div class="contract-header">
@@ -174,6 +181,7 @@ function mostrarContratos(contratos) {
                             ${contrato.tipo_procedimiento || ''} | 
                             ${contrato.anio || ''}
                         </div>
+                        ${botonCompranet}
                     </div>
                     <div class="contract-amount">${formatMoney(contrato.importe)}</div>
                 </div>
@@ -266,12 +274,8 @@ function applyFilters() {
     const valores = Array.from(checkboxes).map(cb => cb.value);
     
     if (valores.length > 0) {
-        // Manejar el caso especial de años - asegurarse de que sean strings
-        if (currentFilterType === 'anio') {
-            activeFilters[currentFilterType] = valores.map(v => String(v));
-        } else {
-            activeFilters[currentFilterType] = valores;
-        }
+        // Los años ya vienen como strings, perfecto para el backend
+        activeFilters[currentFilterType] = valores;
     } else {
         delete activeFilters[currentFilterType];
     }
@@ -344,13 +348,13 @@ async function buscarConFiltros() {
 }
 
 // Ver detalle de empresa
-async function verEmpresa(rfc) {
+async function verProveedor(rfc) {
     try {
         const response = await fetch(`/api/empresa/${rfc}`);
         const data = await response.json();
         
         // Por ahora solo mostrar alert, después haremos una vista detallada
-        alert(`Empresa: ${data.empresa}\nTotal contratos: ${data.total_contratos}\nMonto total: ${formatMoney(data.monto_total)}`);
+        alert(`Proveedor: ${data.empresa}\nTotal contratos: ${data.total_contratos}\nMonto total: ${formatMoney(data.monto_total)}`);
         
     } catch (error) {
         console.error('Error:', error);

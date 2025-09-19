@@ -5,6 +5,7 @@
 
 -- =====================================================
 -- 1. CONVERTIR TEXTO A MAYÚSCULAS
+--    (y normalizar campos específicos en minúsculas)
 -- =====================================================
 
 -- Convertir nombres de proveedores a mayúsculas
@@ -27,6 +28,11 @@ UPDATE contratos.contratos
 SET tipo_procedimiento = UPPER(tipo_procedimiento)
 WHERE tipo_procedimiento != UPPER(tipo_procedimiento);
 
+-- Convertir direccion_anuncio a minúsculas
+UPDATE contratos.contratos
+SET direccion_anuncio = LOWER(direccion_anuncio)
+WHERE direccion_anuncio != LOWER(direccion_anuncio);
+
 -- =====================================================
 -- 2. CORREGIR RFCs GENÉRICOS CON RFCs REALES
 -- =====================================================
@@ -38,15 +44,15 @@ WITH proveedores_con_rfc_real AS (
         rfc as rfc_real
     FROM contratos.contratos
     WHERE rfc IS NOT NULL 
-    AND rfc != 'XAXX010101000'
-    AND proveedor_contratista IS NOT NULL
+      AND rfc != 'XAXX010101000'
+      AND proveedor_contratista IS NOT NULL
 )
 -- Actualizar los registros con RFC genérico cuando existe un RFC real
 UPDATE contratos.contratos c
 SET rfc = p.rfc_real
 FROM proveedores_con_rfc_real p
 WHERE c.proveedor_contratista = p.proveedor_contratista
-AND c.rfc = 'XAXX010101000';
+  AND c.rfc = 'XAXX010101000';
 
 -- Verificar cuántos registros se actualizarían (ejecutar antes del UPDATE para verificar)
 WITH proveedores_con_rfc_real AS (
@@ -55,8 +61,8 @@ WITH proveedores_con_rfc_real AS (
         rfc as rfc_real
     FROM contratos.contratos
     WHERE rfc IS NOT NULL 
-    AND rfc != 'XAXX010101000'
-    AND proveedor_contratista IS NOT NULL
+      AND rfc != 'XAXX010101000'
+      AND proveedor_contratista IS NOT NULL
 )
 SELECT 
     c.proveedor_contratista,
@@ -78,7 +84,7 @@ ORDER BY COUNT(*) DESC;
 UPDATE contratos.contratos
 SET rfc = 'BEGS550821450'
 WHERE proveedor_contratista = 'SABINA BERMAN GOLDBERG'
-AND rfc = 'XAXX010101000';
+  AND rfc = 'XAXX010101000';
 
 -- =====================================================
 -- 4. VERIFICACIONES POST-CORRECCIÓN
@@ -126,3 +132,13 @@ ON contratos.contratos(proveedor_contratista);
 -- Índice compuesto para búsquedas comunes
 CREATE INDEX IF NOT EXISTS idx_contratos_busqueda 
 ON contratos.contratos(proveedor_contratista, siglas_institucion, anio_fuente);
+
+-- Índice funcional para búsquedas case-insensitive sobre direccion_anuncio
+CREATE INDEX IF NOT EXISTS idx_contratos_lower_direccion_anuncio
+ON contratos.contratos (LOWER(direccion_anuncio));
+
+-- (Opcional) Índice trigram para LIKE/ILIKE de texto libre en direccion_anuncio
+-- Requiere permisos para crear extensión
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_contratos_direccion_anuncio_trgm
+ON contratos.contratos USING gin (direccion_anuncio gin_trgm_ops);

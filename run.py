@@ -68,8 +68,6 @@ if __name__ == '__main__':
             count = db.session.query(func.count(Contrato.codigo_contrato)).scalar()
             print(f"📊 Total de contratos en la BD: {count:,}")
             
-            # Crear índices si no existen
-            create_indexes()
             
         except Exception as e:
             print(f"❌ Error de conexión a la BD: {e}")

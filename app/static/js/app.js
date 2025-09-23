@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ===========================
 // Función principal de búsqueda
 // ===========================
-async function buscar() {
+async function buscar(resetFilters = true) {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) {
         mostrarError('Por favor ingresa un término de búsqueda');
@@ -50,7 +50,12 @@ async function buscar() {
     // Guardar para uso posterior
     lastQuery = query;
     lastSearchType = searchType;
-    activeFilters = {}; // Reset filtros
+    
+    // Solo resetear filtros si es una búsqueda nueva
+    if (resetFilters) {
+        activeFilters = {};
+    }
+    
     currentPage = 1;
 
     // Mostrar loading
@@ -83,6 +88,7 @@ async function buscar() {
         
         // Debug log para verificar la estructura
         console.log('Datos recibidos:', data);
+        console.log('Filtros activos:', activeFilters);
 
         // Verificar si hay resultados
         if (!data || data.total === 0) {
@@ -345,7 +351,7 @@ function applyFilters() {
     
     closeFilterModal();
     updateActiveFiltersDisplay();
-    buscar(); // Realizar nueva búsqueda con filtros
+    buscar(false); // No resetear filtros
 }
 
 function updateActiveFiltersDisplay() {
@@ -375,13 +381,13 @@ function removeFilter(type, value) {
         }
     }
     updateActiveFiltersDisplay();
-    buscar();
+    buscar(false); // No resetear filtros
 }
 
 function clearAllFilters() {
     activeFilters = {};
     updateActiveFiltersDisplay();
-    buscar();
+    buscar(false); // Ya limpiamos los filtros manualmente
 }
 
 // ===========================
@@ -411,7 +417,7 @@ async function cargarContratos(page, append = false) {
     try {
         isLoadingMore = true;
         
-        const response = await fetch('/api/search', {
+        const response = await fetch('/api/contracts/page', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

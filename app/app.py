@@ -1,80 +1,62 @@
-# app.py
-# Aplicación principal de LaLupa
-
+# ===========================
+# IMPORTS
+# ===========================
+import os
+import re
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_, func, desc, text
-import os
-from dotenv import load_dotenv
-from decimal import Decimal
-import re
+from sqlalchemy import func, or_, text, and_
+from sqlalchemy.orm import Query
+import logging
 
-# Cargar variables de entorno
-load_dotenv()
-
-# Crear aplicación Flask
+# ===========================
+# CONFIGURACIÓN
+# ===========================
 app = Flask(__name__)
 
-# Configuración
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-lalupa')
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 10,
-    'pool_recycle': 3600,
-    'pool_pre_ping': True
-}
+# Configuración de la base de datos
+DB_USER = os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
+DB_NAME = os.getenv('DB_NAME', 'contratos_db')
 
-# Inicializar base de datos
+app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JSON_AS_ASCII'] = False
+
 db = SQLAlchemy(app)
 
-# ===========================
-# MODELO DE BASE DE DATOS
-# ===========================
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
 
+# ===========================
+# MODELOS
+# ===========================
 class Contrato(db.Model):
     __tablename__ = 'contratos'
     __table_args__ = {'schema': 'contratos'}
     
-    # Campos principales (usando los nombres reales de la BD)
     codigo_contrato = db.Column(db.String, primary_key=True)
-    codigo_expediente = db.Column(db.String, primary_key=True)
-    clave_uc = db.Column(db.String)
-    
-    # Información del contrato
-    descripcion_contrato = db.Column(db.Text)
+    codigo_expediente = db.Column(db.String)
     titulo_contrato = db.Column(db.Text)
     titulo_expediente = db.Column(db.Text)
+    descripcion_contrato = db.Column(db.Text)
     tipo_contratacion = db.Column(db.String)
     tipo_procedimiento = db.Column(db.String)
-    
-    # Información del proveedor
     proveedor_contratista = db.Column(db.String)
     rfc = db.Column(db.String)
-    anio_fundacion_empresa = db.Column(db.Integer)
-    
-    # Información de la institución
     institucion = db.Column(db.String)
     siglas_institucion = db.Column(db.String)
-    nombre_uc = db.Column(db.String)
-    
-    # Montos
     importe = db.Column(db.Numeric)
     importe_contrato = db.Column(db.String)
     moneda = db.Column(db.String)
-    
-    # Fechas
-    fecha_inicio_contrato = db.Column(db.DateTime)
-    fecha_fin_contrato = db.Column(db.DateTime)
-    fecha_publicacion = db.Column(db.DateTime)
-    fecha_firma_contrato = db.Column(db.DateTime)
-    
-    # Estado y otros
+    fecha_inicio_contrato = db.Column(db.Date)
+    fecha_fin_contrato = db.Column(db.Date)
     estatus_contrato = db.Column(db.String)
-    direccion_anuncio = db.Column(db.String)
+    direccion_anuncio = db.Column(db.Text)
     anio_fuente = db.Column(db.Integer)
-    estratificacion = db.Column(db.String)
-    forma_participacion = db.Column(db.String)
     
     def get_importe_numerico(self):
         """Obtiene el importe como número flotante"""
@@ -114,7 +96,6 @@ class Contrato(db.Model):
 # ===========================
 # RUTAS PRINCIPALES
 # ===========================
-
 @app.route('/')
 def index():
     """Página principal"""
@@ -122,7 +103,7 @@ def index():
 
 @app.route('/api/search', methods=['POST'])
 def search():
-    """API de búsqueda principal con validación de seguridad"""
+    """Búsqueda inicial - retorna agregados y primeros contratos"""
     try:
         data = request.get_json()
         
@@ -153,30 +134,37 @@ def search():
             if not re.match(rfc_pattern, query_text.upper()):
                 return jsonify({'error': 'Formato de RFC inválido'}), 400
         
-        # Construir la consulta según el tipo
-        query = build_search_query(query_text, search_type)
+        # Construir la consulta base según el tipo
+        base_query = build_search_query(query_text, search_type)
         
         # Aplicar filtros si existen
         if filters:
-            query = apply_filters(query, filters)
+            base_query = apply_filters(base_query, filters)
         
-        # Limitar resultados para mejorar performance
-        contratos = query.limit(1000).all()
+        # Guardar los parámetros de búsqueda en la sesión para paginación posterior
+        app.logger.info(f"Búsqueda: {query_text}, tipo: {search_type}")
         
-        if not contratos:
-            return jsonify({
-                'query': query_text,
-                'search_type': search_type,
-                'total': 0,
-                'monto_total': 0,
-                'empresas': [],
-                'instituciones': [],
-                'contratos': [],
-                'filtros_disponibles': {}
-            })
+        # 1. Obtener agregados de forma eficiente
+        agregados = obtener_agregados_optimizado(base_query)
         
-        # Procesar y agrupar resultados
-        resultado = procesar_resultados(contratos, query_text, search_type)
+        # 2. Obtener solo los primeros 50 contratos ordenados por importe
+        contratos = base_query.order_by(Contrato.importe.desc().nullslast()).limit(50).all()
+        
+        # 3. Obtener filtros disponibles (solo de los resultados totales)
+        filtros_disponibles = obtener_filtros_disponibles(base_query)
+        
+        resultado = {
+            'query': query_text,
+            'search_type': search_type,
+            'total': agregados['total_contratos'],
+            'monto_total': agregados['monto_total'],
+            'proveedores': agregados['top_proveedores'],
+            'instituciones': agregados['top_instituciones'],
+            'contratos': [c.to_dict() for c in contratos],
+            'filtros_disponibles': filtros_disponibles,
+            'page': 1,
+            'has_more': agregados['total_contratos'] > 50
+        }
         
         return jsonify(resultado)
         
@@ -184,115 +172,253 @@ def search():
         app.logger.error(f"Error en búsqueda: {str(e)}")
         return jsonify({'error': 'Error al procesar la búsqueda'}), 500
 
-@app.route('/api/empresa/<rfc>')
-def get_empresa(rfc):
-    """Obtiene todos los contratos de una empresa"""
+@app.route('/api/contracts/page', methods=['POST'])
+def get_contracts_page():
+    """Obtiene una página específica de contratos (para scroll infinito)"""
     try:
-        contratos = Contrato.query.filter_by(rfc=rfc).all()
+        data = request.get_json()
         
-        if not contratos:
-            return jsonify({'error': 'No se encontraron contratos para este RFC'}), 404
+        query_text = data.get('query', '').strip()
+        search_type = data.get('search_type', 'todo')
+        filters = data.get('filters', {})
+        page = data.get('page', 1)
+        per_page = min(data.get('per_page', 50), 100)  # Máximo 100 por página
         
-        # Ordenar por importe
-        contratos_ordenados = sorted(
-            contratos,
-            key=lambda x: x.get_importe_numerico(),
-            reverse=True
-        )
+        # Validación básica
+        if not query_text:
+            return jsonify({'error': 'Query requerido'}), 400
         
-        monto_total = sum(c.get_importe_numerico() for c in contratos)
+        if page < 1:
+            page = 1
+            
+        # Construir la consulta
+        query = build_search_query(query_text, search_type)
         
-        # Agrupar por institución
-        instituciones_dict = {}
-        for c in contratos:
-            if c.siglas_institucion:
-                if c.siglas_institucion not in instituciones_dict:
-                    instituciones_dict[c.siglas_institucion] = {
-                        'nombre': c.institucion,
-                        'monto': 0,
-                        'cantidad': 0
-                    }
-                instituciones_dict[c.siglas_institucion]['monto'] += c.get_importe_numerico()
-                instituciones_dict[c.siglas_institucion]['cantidad'] += 1
+        # Aplicar filtros
+        if filters:
+            query = apply_filters(query, filters)
+        
+        # Calcular offset
+        offset = (page - 1) * per_page
+        
+        # Obtener contratos paginados ordenados por importe
+        contratos = query.order_by(Contrato.importe.desc().nullslast()).offset(offset).limit(per_page).all()
+        
+        # Verificar si hay más páginas
+        total_contratos = query.count()
+        has_more = (offset + per_page) < total_contratos
         
         return jsonify({
-            'empresa': contratos[0].proveedor_contratista,
-            'rfc': rfc,
-            'total_contratos': len(contratos),
-            'monto_total': monto_total,
-            'instituciones_clientes': instituciones_dict,
-            'contratos': [c.to_dict() for c in contratos_ordenados[:100]]
+            'contratos': [c.to_dict() for c in contratos],
+            'page': page,
+            'per_page': per_page,
+            'has_more': has_more,
+            'total': total_contratos
         })
         
     except Exception as e:
-        app.logger.error(f"Error obteniendo empresa {rfc}: {str(e)}")
-        return jsonify({'error': 'Error al obtener datos de la empresa'}), 500
+        app.logger.error(f"Error obteniendo página de contratos: {str(e)}")
+        return jsonify({'error': 'Error al obtener contratos'}), 500
 
-@app.route('/api/institucion/<siglas>')
-def get_institucion(siglas):
-    """Obtiene todos los contratos de una institución"""
+@app.route('/api/aggregates', methods=['POST'])
+def get_aggregates_only():
+    """Obtiene solo los agregados (útil para actualización rápida)"""
     try:
-        contratos = Contrato.query.filter_by(siglas_institucion=siglas).all()
+        data = request.get_json()
         
-        if not contratos:
-            return jsonify({'error': 'No se encontraron contratos para esta institución'}), 404
+        query_text = data.get('query', '').strip()
+        search_type = data.get('search_type', 'todo')
+        filters = data.get('filters', {})
         
-        # Ordenar por importe
-        contratos_ordenados = sorted(
-            contratos,
-            key=lambda x: x.get_importe_numerico(),
-            reverse=True
-        )
+        if not query_text:
+            return jsonify({'error': 'Query requerido'}), 400
         
-        monto_total = sum(c.get_importe_numerico() for c in contratos)
+        # Construir consulta base
+        base_query = build_search_query(query_text, search_type)
         
-        # Agrupar por empresa
-        empresas_dict = {}
-        for c in contratos:
-            if c.rfc and c.rfc != 'XAXX010101000':  # Excluir RFC genérico
-                if c.rfc not in empresas_dict:
-                    empresas_dict[c.rfc] = {
-                        'nombre': c.proveedor_contratista,
-                        'monto': 0,
-                        'cantidad': 0
-                    }
-                empresas_dict[c.rfc]['monto'] += c.get_importe_numerico()
-                empresas_dict[c.rfc]['cantidad'] += 1
+        # Aplicar filtros
+        if filters:
+            base_query = apply_filters(base_query, filters)
         
-        return jsonify({
-            'institucion': contratos[0].institucion,
-            'siglas': siglas,
-            'total_contratos': len(contratos),
-            'monto_total': monto_total,
-            'proveedores': empresas_dict,
-            'contratos': [c.to_dict() for c in contratos_ordenados[:100]]
-        })
+        # Obtener agregados optimizados
+        agregados = obtener_agregados_optimizado(base_query)
+        
+        return jsonify(agregados)
         
     except Exception as e:
-        app.logger.error(f"Error obteniendo institución {siglas}: {str(e)}")
-        return jsonify({'error': 'Error al obtener datos de la institución'}), 500
+        app.logger.error(f"Error obteniendo agregados: {str(e)}")
+        return jsonify({'error': 'Error al obtener agregados'}), 500
 
-@app.route('/api/stats')
-def get_stats():
-    """Obtiene estadísticas generales de la base de datos"""
+# ===========================
+# FUNCIONES AUXILIARES OPTIMIZADAS
+# ===========================
+
+def obtener_agregados_optimizado(base_query):
+    """
+    Obtiene agregados usando consultas SQL optimizadas
+    """
     try:
-        total_contratos = db.session.query(func.count(Contrato.codigo_contrato)).scalar()
-        total_instituciones = db.session.query(func.count(func.distinct(Contrato.siglas_institucion))).scalar()
-        total_empresas = db.session.query(func.count(func.distinct(Contrato.rfc))).scalar()
+        # 1. Total de contratos y monto total en una sola consulta
+        totales = db.session.query(
+            func.count(Contrato.codigo_contrato).label('total'),
+            func.sum(Contrato.importe).label('monto_total')
+        ).select_from(base_query.subquery()).first()
         
-        return jsonify({
+        total_contratos = totales.total or 0
+        monto_total = float(totales.monto_total or 0)
+        
+        # 2. Top 20 proveedores agrupados por RFC (optimizado con SQL)
+        subquery = base_query.subquery()
+        
+        # Consulta para proveedores agrupados
+        proveedores_query = db.session.query(
+            Contrato.proveedor_contratista.label('nombre'),
+            Contrato.rfc.label('rfc'),
+            func.count(Contrato.codigo_contrato).label('num_contratos'),
+            func.sum(Contrato.importe).label('monto_total')
+        ).select_from(subquery).filter(
+            Contrato.proveedor_contratista.isnot(None)
+        ).group_by(
+            Contrato.proveedor_contratista,
+            Contrato.rfc
+        ).order_by(
+            func.sum(Contrato.importe).desc().nullslast()
+        ).limit(20)
+        
+        proveedores = []
+        for p in proveedores_query:
+            proveedores.append({
+                'nombre': p.nombre,
+                'rfc': p.rfc if p.rfc and p.rfc != 'XAXX010101000' else 'RFC Genérico',
+                'num_contratos': p.num_contratos,
+                'monto_total': float(p.monto_total or 0)
+            })
+        
+        # 3. Top 20 instituciones agrupadas
+        instituciones_query = db.session.query(
+            Contrato.institucion.label('nombre'),
+            Contrato.siglas_institucion.label('siglas'),
+            func.count(Contrato.codigo_contrato).label('num_contratos'),
+            func.sum(Contrato.importe).label('monto_total')
+        ).select_from(subquery).filter(
+            Contrato.siglas_institucion.isnot(None)
+        ).group_by(
+            Contrato.institucion,
+            Contrato.siglas_institucion
+        ).order_by(
+            func.sum(Contrato.importe).desc().nullslast()
+        ).limit(20)
+        
+        instituciones = []
+        for i in instituciones_query:
+            instituciones.append({
+                'nombre': i.nombre,
+                'siglas': i.siglas,
+                'num_contratos': i.num_contratos,
+                'monto_total': float(i.monto_total or 0)
+            })
+        
+        return {
             'total_contratos': total_contratos,
-            'total_instituciones': total_instituciones,
-            'total_empresas': total_empresas
-        })
+            'monto_total': monto_total,
+            'top_proveedores': proveedores,
+            'top_instituciones': instituciones
+        }
         
     except Exception as e:
-        app.logger.error(f"Error obteniendo estadísticas: {str(e)}")
-        return jsonify({'error': 'Error al obtener estadísticas'}), 500
+        app.logger.error(f"Error en agregados optimizados: {str(e)}")
+        return {
+            'total_contratos': 0,
+            'monto_total': 0,
+            'top_proveedores': [],
+            'top_instituciones': []
+        }
 
-# ===========================
-# FUNCIONES AUXILIARES
-# ===========================
+def obtener_filtros_disponibles(base_query):
+    """
+    Obtiene los valores únicos para filtros usando consultas optimizadas
+    """
+    try:
+        filtros = {}
+        
+        # Usar subconsultas para mejorar performance
+        subquery = base_query.subquery()
+        
+        # Top 10 instituciones más frecuentes
+        inst_query = db.session.query(
+            Contrato.siglas_institucion,
+            func.count(Contrato.codigo_contrato).label('count')
+        ).select_from(subquery).filter(
+            Contrato.siglas_institucion.isnot(None)
+        ).group_by(
+            Contrato.siglas_institucion
+        ).order_by(
+            func.count(Contrato.codigo_contrato).desc()
+        ).limit(10)
+        
+        filtros['instituciones'] = {i.siglas_institucion: i.count for i in inst_query}
+        
+        # Top 10 tipos de contratación
+        tipos_query = db.session.query(
+            Contrato.tipo_contratacion,
+            func.count(Contrato.codigo_contrato).label('count')
+        ).select_from(subquery).filter(
+            Contrato.tipo_contratacion.isnot(None)
+        ).group_by(
+            Contrato.tipo_contratacion
+        ).order_by(
+            func.count(Contrato.codigo_contrato).desc()
+        ).limit(10)
+        
+        filtros['tipos'] = {t.tipo_contratacion: t.count for t in tipos_query}
+        
+        # Top 10 tipos de procedimiento
+        proc_query = db.session.query(
+            Contrato.tipo_procedimiento,
+            func.count(Contrato.codigo_contrato).label('count')
+        ).select_from(subquery).filter(
+            Contrato.tipo_procedimiento.isnot(None)
+        ).group_by(
+            Contrato.tipo_procedimiento
+        ).order_by(
+            func.count(Contrato.codigo_contrato).desc()
+        ).limit(10)
+        
+        filtros['procedimientos'] = {p.tipo_procedimiento: p.count for p in proc_query}
+        
+        # Top 10 años
+        anios_query = db.session.query(
+            Contrato.anio_fuente,
+            func.count(Contrato.codigo_contrato).label('count')
+        ).select_from(subquery).filter(
+            Contrato.anio_fuente.isnot(None)
+        ).group_by(
+            Contrato.anio_fuente
+        ).order_by(
+            Contrato.anio_fuente.desc()
+        ).limit(10)
+        
+        filtros['anios'] = {str(a.anio_fuente): a.count for a in anios_query}
+        
+        # Top 5 estatus
+        estatus_query = db.session.query(
+            Contrato.estatus_contrato,
+            func.count(Contrato.codigo_contrato).label('count')
+        ).select_from(subquery).filter(
+            Contrato.estatus_contrato.isnot(None)
+        ).group_by(
+            Contrato.estatus_contrato
+        ).order_by(
+            func.count(Contrato.codigo_contrato).desc()
+        ).limit(5)
+        
+        filtros['estatus'] = {e.estatus_contrato: e.count for e in estatus_query}
+        
+        return filtros
+        
+    except Exception as e:
+        app.logger.error(f"Error obteniendo filtros: {str(e)}")
+        return {}
 
 def build_search_query(query_text, search_type):
     """Construye la consulta de búsqueda según el tipo"""
@@ -357,146 +483,27 @@ def apply_filters(query, filters):
     
     return query
 
-# FIX TEMPORAL para app.py - Mejorar la agrupación por proveedor
-# Reemplazar en la función procesar_resultados
-
-def procesar_resultados(contratos, query_text, search_type):
-    """Procesa y agrupa los resultados de búsqueda"""
-    # Diccionarios para agrupar
-    proveedores_dict = {}
-    instituciones_dict = {}
-    
-    # Primero, crear un mapeo de nombres a RFC real
-    rfc_mapping = {}
-    for contrato in contratos:
-        if contrato.proveedor_contratista and contrato.rfc and contrato.rfc != 'XAXX010101000':
-            rfc_mapping[contrato.proveedor_contratista] = contrato.rfc
-    
-    # Procesar cada contrato
-    for contrato in contratos:
-        importe = contrato.get_importe_numerico()
+@app.route('/api/stats')
+def get_stats():
+    """Obtiene estadísticas generales de la base de datos"""
+    try:
+        total_contratos = db.session.query(func.count(Contrato.codigo_contrato)).scalar()
+        total_instituciones = db.session.query(func.count(func.distinct(Contrato.siglas_institucion))).scalar()
+        total_empresas = db.session.query(func.count(func.distinct(Contrato.rfc))).scalar()
         
-        # Determinar la clave para agrupar proveedores
-        if contrato.proveedor_contratista:
-            # Si conocemos el RFC real de este proveedor, usarlo
-            if contrato.proveedor_contratista in rfc_mapping:
-                proveedor_key = rfc_mapping[contrato.proveedor_contratista]
-                rfc_display = rfc_mapping[contrato.proveedor_contratista]
-            # Si tiene un RFC no genérico, usarlo
-            elif contrato.rfc and contrato.rfc != 'XAXX010101000':
-                proveedor_key = contrato.rfc
-                rfc_display = contrato.rfc
-            # Si solo tiene RFC genérico, usar el nombre
-            else:
-                proveedor_key = f"nombre_{contrato.proveedor_contratista}"
-                rfc_display = 'RFC Genérico'
-            
-            if proveedor_key not in proveedores_dict:
-                proveedores_dict[proveedor_key] = {
-                    'nombre': contrato.proveedor_contratista,
-                    'rfc': rfc_display,
-                    'monto_total': 0,
-                    'num_contratos': 0
-                }
-            proveedores_dict[proveedor_key]['monto_total'] += importe
-            proveedores_dict[proveedor_key]['num_contratos'] += 1
+        return jsonify({
+            'total_contratos': total_contratos,
+            'total_instituciones': total_instituciones,
+            'total_empresas': total_empresas
+        })
         
-        # Agrupar por institución (sin cambios)
-        if contrato.siglas_institucion:
-            if contrato.siglas_institucion not in instituciones_dict:
-                instituciones_dict[contrato.siglas_institucion] = {
-                    'nombre': contrato.institucion,
-                    'siglas': contrato.siglas_institucion,
-                    'monto_total': 0,
-                    'num_contratos': 0
-                }
-            instituciones_dict[contrato.siglas_institucion]['monto_total'] += importe
-            instituciones_dict[contrato.siglas_institucion]['num_contratos'] += 1
-    
-    # Convertir a listas y ordenar por monto
-    proveedores = sorted(
-        proveedores_dict.values(),
-        key=lambda x: x['monto_total'],
-        reverse=True
-    )[:20]
-    
-    instituciones = sorted(
-        instituciones_dict.values(),
-        key=lambda x: x['monto_total'],
-        reverse=True
-    )[:20]
-    
-    # Ordenar contratos por monto
-    contratos_ordenados = sorted(
-        contratos,
-        key=lambda x: x.get_importe_numerico(),
-        reverse=True
-    )[:100]
-    
-    # Calcular totales correctamente
-    monto_total = sum(c.get_importe_numerico() for c in contratos)
-    
-    # Extraer filtros disponibles
-    filtros_disponibles = extraer_filtros(contratos)
-    
-    return {
-        'query': query_text,
-        'search_type': search_type,
-        'total': len(contratos),
-        'monto_total': monto_total,
-        'proveedores': proveedores,
-        'instituciones': instituciones,
-        'contratos': [c.to_dict() for c in contratos_ordenados],
-        'filtros_disponibles': filtros_disponibles,
-        'tiene_mas': len(contratos) > 100
-    }
-
-def extraer_filtros(contratos):
-    """Extrae los valores únicos para los filtros desde los resultados"""
-    filtros = {
-        'instituciones': {},
-        'tipos': {},
-        'procedimientos': {},
-        'anios': {},
-        'estatus': {}
-    }
-    
-    for contrato in contratos:
-        # Instituciones
-        if contrato.siglas_institucion:
-            key = contrato.siglas_institucion
-            filtros['instituciones'][key] = filtros['instituciones'].get(key, 0) + 1
-        
-        # Tipos de contratación
-        if contrato.tipo_contratacion:
-            filtros['tipos'][contrato.tipo_contratacion] = filtros['tipos'].get(contrato.tipo_contratacion, 0) + 1
-        
-        # Tipos de procedimiento
-        if contrato.tipo_procedimiento:
-            filtros['procedimientos'][contrato.tipo_procedimiento] = filtros['procedimientos'].get(contrato.tipo_procedimiento, 0) + 1
-        
-        # Años
-        if contrato.anio_fuente:
-            filtros['anios'][str(contrato.anio_fuente)] = filtros['anios'].get(str(contrato.anio_fuente), 0) + 1
-        
-        # Estados
-        if contrato.estatus_contrato:
-            filtros['estatus'][contrato.estatus_contrato] = filtros['estatus'].get(contrato.estatus_contrato, 0) + 1
-    
-    # Ordenar cada categoría por cantidad y limitar a top 10
-    for categoria in filtros:
-        filtros[categoria] = dict(sorted(
-            filtros[categoria].items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:10])
-    
-    return filtros
+    except Exception as e:
+        app.logger.error(f"Error obteniendo estadísticas: {str(e)}")
+        return jsonify({'error': 'Error al obtener estadísticas'}), 500
 
 # ===========================
 # INICIALIZACIÓN
 # ===========================
-
 if __name__ == '__main__':
     with app.app_context():
         # Verificar conexión a la base de datos
@@ -508,6 +515,40 @@ if __name__ == '__main__':
             # Contar registros
             count = db.session.query(func.count(Contrato.codigo_contrato)).scalar()
             print(f"📊 Total de contratos en la BD: {count:,}")
+            
+            # Crear índices si no existen (importante para performance)
+            indices_sql = """
+            -- Índices para mejorar performance
+            CREATE INDEX IF NOT EXISTS idx_contratos_importe 
+                ON contratos.contratos(importe DESC NULLS LAST);
+            
+            CREATE INDEX IF NOT EXISTS idx_contratos_proveedor 
+                ON contratos.contratos(proveedor_contratista);
+            
+            CREATE INDEX IF NOT EXISTS idx_contratos_rfc 
+                ON contratos.contratos(rfc);
+            
+            CREATE INDEX IF NOT EXISTS idx_contratos_siglas_inst 
+                ON contratos.contratos(siglas_institucion);
+            
+            CREATE INDEX IF NOT EXISTS idx_contratos_anio 
+                ON contratos.contratos(anio_fuente);
+            
+            -- Índices para búsqueda de texto
+            CREATE INDEX IF NOT EXISTS idx_contratos_titulo_contrato 
+                ON contratos.contratos USING gin(to_tsvector('spanish', titulo_contrato));
+            
+            CREATE INDEX IF NOT EXISTS idx_contratos_descripcion 
+                ON contratos.contratos USING gin(to_tsvector('spanish', descripcion_contrato));
+            """
+            
+            try:
+                db.session.execute(text(indices_sql))
+                db.session.commit()
+                print("✅ Índices verificados/creados")
+            except Exception as e:
+                print(f"⚠️ No se pudieron crear algunos índices: {e}")
+                db.session.rollback()
             
         except Exception as e:
             print(f"❌ Error de conexión a la BD: {e}")

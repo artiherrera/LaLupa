@@ -142,3 +142,8 @@ ON contratos.contratos (LOWER(direccion_anuncio));
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_contratos_direccion_anuncio_trgm
 ON contratos.contratos USING gin (direccion_anuncio gin_trgm_ops);
+
+
+
+-- NEcesario para busquedas indiferentes de Acentos
+CREATE EXTENSION IF NOT EXISTS unaccent;

@@ -12,3 +12,4 @@ class Config:
         'pool_recycle': 3600,
         'pool_pre_ping': True
     }
+

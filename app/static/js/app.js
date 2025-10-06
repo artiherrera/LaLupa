@@ -160,32 +160,52 @@ function renderAggregates(data) {
 // ===========================
 // Render de contratos
 // ===========================
+
 function renderContratos(contratos, append = false) {
     let html = '';
 
     contratos.forEach(contrato => {
-        const titulo = contrato.titulo || contrato.descripcion || 'Sin título';
-        const tituloCorto = titulo.length > 100 ? titulo.substring(0, 100) + '...' : titulo;
+        const titulo = contrato.titulo || 'Sin título';
+        const descripcion = contrato.descripcion || 'Sin descripción disponible';
+        const descripcionCorta = descripcion.length > 200 ? descripcion.substring(0, 200) + '...' : descripcion;
 
-        const botonCompranet = contrato.url_compranet && contrato.url_compranet.startsWith('http') 
-            ? `<a href="${contrato.url_compranet}" target="_blank" class="btn-compranet" title="Ver en CompraNet">🔗 CompraNet</a>` 
-            : '';
+        // Formatear fechas de manera simple
+        const formatDate = (dateStr) => {
+            if (!dateStr) return 'N/D';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('es-MX');
+        };
 
         html += `
-            <div class="contract-item">
-                <div class="contract-header">
-                    <div style="flex: 1;">
-                        <div class="contract-title">${tituloCorto}</div>
-                        <div class="contract-details">
-                            <strong>${contrato.institucion || contrato.siglas_institucion || ''}</strong> | 
-                            ${contrato.proveedor || 'Sin proveedor'}<br>
-                            Código: ${contrato.codigo_contrato || 'N/A'} | 
-                            ${contrato.tipo_procedimiento || ''} | 
-                            ${contrato.anio || ''}
-                        </div>
-                        ${botonCompranet}
+            <div class="contract-card">
+                <div class="contract-top">
+                    <div class="contract-title-section">
+                        <h3 class="contract-title">${titulo}</h3>
+                        <p class="contract-description">${descripcionCorta}</p>
                     </div>
-                    <div class="contract-amount">${formatMoney(contrato.importe)}</div>
+                    <div class="contract-amount-section">
+                        <div class="contract-amount">${formatMoney(contrato.importe)}</div>
+                        <div class="contract-currency">${contrato.moneda || 'MXN'}</div>
+                    </div>
+                </div>
+                
+                <div class="contract-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Proveedor</span>
+                        <span class="detail-value">${contrato.proveedor || 'No especificado'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Institución</span>
+                        <span class="detail-value">${contrato.siglas_institucion || 'N/D'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Período</span>
+                        <span class="detail-value">${formatDate(contrato.fecha_inicio)} - ${formatDate(contrato.fecha_fin)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Procedimiento</span>
+                        <span class="detail-value">${contrato.tipo_procedimiento || 'N/D'}</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -197,7 +217,6 @@ function renderContratos(contratos, append = false) {
         document.getElementById('contratosList').innerHTML = html;
     }
 }
-
 // ===========================
 // Mostrar proveedores
 // ===========================

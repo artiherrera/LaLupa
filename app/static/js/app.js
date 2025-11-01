@@ -63,6 +63,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ===========================
+// Toggle Search Help
+// ===========================
+function toggleSearchHelp() {
+    const helpPanel = document.getElementById('searchHelp');
+    helpPanel.classList.toggle('hidden');
+}
+
+// ===========================
 // Función principal de búsqueda
 // ===========================
 async function buscar(resetFilters = true) {

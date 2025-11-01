@@ -42,6 +42,34 @@
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Buscar en todo: medicamentos, construcción, servicios..." autofocus>
                 <button id="searchBtn" type="button" onclick="buscar()">🔍 Buscar</button>
+                <button id="helpBtn" type="button" onclick="toggleSearchHelp()" title="Ayuda de búsqueda">❓</button>
+            </div>
+
+            <!-- Ayuda de búsqueda (oculto por defecto) -->
+            <div id="searchHelp" class="search-help hidden">
+                <div class="search-help-title">🎯 Operadores de Búsqueda</div>
+                <div class="search-help-content">
+                    <div class="help-item">
+                        <span class="help-operator">"frase exacta"</span>
+                        <span class="help-description">Busca la frase completa</span>
+                        <span class="help-example">Ej: <code>"medicamentos COVID-19"</code></span>
+                    </div>
+                    <div class="help-item">
+                        <span class="help-operator">-excluir</span>
+                        <span class="help-description">Excluye resultados con esta palabra</span>
+                        <span class="help-example">Ej: <code>medicamentos -vacunas</code></span>
+                    </div>
+                    <div class="help-item">
+                        <span class="help-operator">OR</span>
+                        <span class="help-description">Busca cualquiera de los términos</span>
+                        <span class="help-example">Ej: <code>medicamentos OR equipos</code></span>
+                    </div>
+                    <div class="help-item">
+                        <span class="help-operator">Combinar</span>
+                        <span class="help-description">Usa varios operadores juntos</span>
+                        <span class="help-example">Ej: <code>"Secretaría de Salud" -2020 IMSS</code></span>
+                    </div>
+                </div>
             </div>
         </div>
 

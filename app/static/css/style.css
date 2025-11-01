@@ -228,6 +228,103 @@ header h1 {
     box-shadow: var(--shadow-sm);
 }
 
+/* Help Button */
+#helpBtn {
+    padding: 16px 20px;
+    background: var(--glass);
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+}
+
+#helpBtn:hover {
+    background: var(--glass-hover);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+/* Search Help Panel */
+.search-help {
+    margin-top: 20px;
+    padding: 24px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    animation: slideDown 0.3s var(--ease);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.search-help-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.search-help-content {
+    display: grid;
+    gap: 16px;
+}
+
+.help-item {
+    display: grid;
+    grid-template-columns: 120px 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    background: var(--glass);
+    border-radius: 8px;
+    transition: all 0.2s var(--ease);
+}
+
+.help-item:hover {
+    background: var(--glass-hover);
+    transform: translateX(4px);
+}
+
+.help-operator {
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 14px;
+}
+
+.help-description {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.help-example {
+    color: var(--text-tertiary);
+    font-size: 13px;
+}
+
+.help-example code {
+    background: rgba(0, 122, 255, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--primary);
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 12px;
+}
+
 /* Search Options - Radio Group */
 .search-options {
     display: flex;

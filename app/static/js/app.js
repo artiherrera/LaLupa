@@ -9,20 +9,26 @@ let isLoadingMore = false;
 let lastQuery = '';
 let lastSearchType = 'descripcion';
 let activeFilters = {};
+let pendingFilters = {};
+let availableFilters = {};
 const perPage = 20;
+
+// Variables para la tabla
+let currentSortColumn = 'importe';
+let currentSortOrder = 'desc';
+let cachedContracts = [];
+let expandedRows = new Set();
 
 // ===========================
 // Inicialización
 // ===========================
 document.addEventListener('DOMContentLoaded', function() {
-    // Event listener para buscar con Enter
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             buscar();
         }
     });
 
-    // Observer para scroll infinito
     const sentinel = document.getElementById('scrollSentinel');
     if (sentinel) {
         const observer = new IntersectionObserver((entries) => {
@@ -44,21 +50,17 @@ async function buscar(resetFilters = true) {
         return;
     }
 
-    // Obtener tipo de búsqueda seleccionado
     const searchType = document.querySelector('input[name="searchType"]:checked').value;
-
-    // Guardar para uso posterior
     lastQuery = query;
     lastSearchType = searchType;
     
-    // Solo resetear filtros si es una búsqueda nueva
     if (resetFilters) {
         activeFilters = {};
+        pendingFilters = {};
     }
     
     currentPage = 1;
 
-    // Mostrar loading
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('resultsArea').classList.add('hidden');
     document.getElementById('errorMessage').classList.add('hidden');
@@ -76,7 +78,6 @@ async function buscar(resetFilters = true) {
             })
         });
 
-        // Ocultar loading
         document.getElementById('loading').classList.add('hidden');
 
         if (!response.ok) {
@@ -86,35 +87,32 @@ async function buscar(resetFilters = true) {
 
         const data = await response.json();
         
-        // Debug log para verificar la estructura
-        console.log('Datos recibidos:', data);
-        console.log('Filtros activos:', activeFilters);
-
-        // Verificar si hay resultados
         if (!data || data.total === 0) {
             mostrarError('No se encontraron resultados para tu búsqueda');
             return;
         }
 
-        // Mostrar resultados
         document.getElementById('resultsArea').classList.remove('hidden');
-        
-        // Renderizar el resumen de resultados con las propiedades correctas
         renderResultsSummary(data);
         
-        // Renderizar los agregados (proveedores e instituciones)
-        renderAggregates(data);
-        
-        // Renderizar contratos
-        if (data.contratos && data.contratos.length > 0) {
-            renderContratos(data.contratos, false);
-            document.getElementById('contratosSection').classList.remove('hidden');
+        if (Object.keys(activeFilters).length > 0) {
+            renderAggregates(data);
+            
+            if (data.contratos && data.contratos.length > 0) {
+                renderContratos(data.contratos, false);
+                document.getElementById('contratosSection').classList.remove('hidden');
+            }
+        } else {
+            document.getElementById('empresasSection').classList.add('hidden');
+            document.getElementById('institucionesSection').classList.add('hidden');
+            document.getElementById('contratosSection').classList.add('hidden');
         }
         
-        // Renderizar filtros si están disponibles
         if (data.filtros_disponibles) {
             renderFilters(data.filtros_disponibles);
         }
+        
+        updateActiveFiltersDisplay();
 
     } catch (error) {
         console.error('Error en búsqueda:', error);
@@ -140,7 +138,6 @@ function renderResultsSummary(data) {
 // Render de agregados
 // ===========================
 function renderAggregates(data) {
-    // Mostrar proveedores
     if (data.proveedores && data.proveedores.length > 0) {
         mostrarProveedores(data.proveedores);
         document.getElementById('empresasSection').classList.remove('hidden');
@@ -148,7 +145,6 @@ function renderAggregates(data) {
         document.getElementById('empresasSection').classList.add('hidden');
     }
 
-    // Mostrar instituciones
     if (data.instituciones && data.instituciones.length > 0) {
         mostrarInstituciones(data.instituciones);
         document.getElementById('institucionesSection').classList.remove('hidden');
@@ -158,65 +154,204 @@ function renderAggregates(data) {
 }
 
 // ===========================
-// Render de contratos
+// Render de contratos - TABLA COMPLETA
 // ===========================
-
 function renderContratos(contratos, append = false) {
-    let html = '';
+    if (!append) {
+        cachedContracts = [...contratos];
+        expandedRows.clear();
+    } else {
+        cachedContracts = [...cachedContracts, ...contratos];
+    }
 
-    contratos.forEach(contrato => {
+    const sortedContracts = sortContracts(cachedContracts, currentSortColumn, currentSortOrder);
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return 'N/D';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+    let html = '';
+    
+    if (!append) {
+        html = `
+            <div class="table-container">
+                <table class="contracts-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('titulo')" class="sortable ${currentSortColumn === 'titulo' ? 'active' : ''}">
+                                Título
+                                ${getSortIcon('titulo')}
+                            </th>
+                            <th>Descripción</th>
+                            <th onclick="sortTable('proveedor')" class="sortable ${currentSortColumn === 'proveedor' ? 'active' : ''}">
+                                Proveedor
+                                ${getSortIcon('proveedor')}
+                            </th>
+                            <th onclick="sortTable('anio_fundacion')" class="sortable ${currentSortColumn === 'anio_fundacion' ? 'active' : ''}">
+                                Año Fundación
+                                ${getSortIcon('anio_fundacion')}
+                            </th>
+                            <th onclick="sortTable('institucion')" class="sortable ${currentSortColumn === 'institucion' ? 'active' : ''}">
+                                Institución
+                                ${getSortIcon('institucion')}
+                            </th>
+                            <th onclick="sortTable('procedimiento')" class="sortable ${currentSortColumn === 'procedimiento' ? 'active' : ''}">
+                                Procedimiento
+                                ${getSortIcon('procedimiento')}
+                            </th>
+                            <th onclick="sortTable('fecha')" class="sortable ${currentSortColumn === 'fecha' ? 'active' : ''}">
+                                Período
+                                ${getSortIcon('fecha')}
+                            </th>
+                            <th onclick="sortTable('importe')" class="sortable ${currentSortColumn === 'importe' ? 'active' : ''}" style="text-align: right;">
+                                Importe
+                                ${getSortIcon('importe')}
+                            </th>
+                            <th style="text-align: center;">Enlace</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+    }
+
+    sortedContracts.forEach((contrato, index) => {
         const titulo = contrato.titulo || 'Sin título';
         const descripcion = contrato.descripcion || 'Sin descripción disponible';
-        const descripcionCorta = descripcion.length > 200 ? descripcion.substring(0, 200) + '...' : descripcion;
-
-        // Formatear fechas de manera simple
-        const formatDate = (dateStr) => {
-            if (!dateStr) return 'N/D';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('es-MX');
-        };
+        const rowId = `row-${index}`;
+        const isExpanded = expandedRows.has(rowId);
+        
+        const tituloDisplay = titulo.length > 80 ? titulo.substring(0, 80) + '...' : titulo;
+        const descripcionDisplay = descripcion.length > 100 ? descripcion.substring(0, 100) + '...' : descripcion;
+        
+        const hasMoreTitulo = titulo.length > 80;
+        const hasMoreDescripcion = descripcion.length > 100;
 
         html += `
-            <div class="contract-card">
-                <div class="contract-top">
-                    <div class="contract-title-section">
-                        <h3 class="contract-title">${titulo}</h3>
-                        <p class="contract-description">${descripcionCorta}</p>
+            <tr data-row-id="${rowId}">
+                <td class="cell-title">
+                    <div class="cell-content">
+                        ${isExpanded || !hasMoreTitulo ? titulo : tituloDisplay}
+                        ${hasMoreTitulo ? `<button class="btn-expand" onclick="toggleRow('${rowId}')">${isExpanded ? '▲ Menos' : '▼ Más'}</button>` : ''}
                     </div>
-                    <div class="contract-amount-section">
-                        <div class="contract-amount">${formatMoney(contrato.importe)}</div>
-                        <div class="contract-currency">${contrato.moneda || 'MXN'}</div>
+                </td>
+                <td class="cell-description">
+                    <div class="cell-content">
+                        ${isExpanded || !hasMoreDescripcion ? descripcion : descripcionDisplay}
+                        ${hasMoreDescripcion ? `<button class="btn-expand" onclick="toggleRow('${rowId}')">${isExpanded ? '▲ Menos' : '▼ Más'}</button>` : ''}
                     </div>
-                </div>
-                
-                <div class="contract-details">
-                    <div class="detail-row">
-                        <span class="detail-label">Proveedor</span>
-                        <span class="detail-value">${contrato.proveedor || 'No especificado'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Institución</span>
-                        <span class="detail-value">${contrato.siglas_institucion || 'N/D'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Período</span>
-                        <span class="detail-value">${formatDate(contrato.fecha_inicio)} - ${formatDate(contrato.fecha_fin)}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Procedimiento</span>
-                        <span class="detail-value">${contrato.tipo_procedimiento || 'N/D'}</span>
-                    </div>
-                </div>
-            </div>
+                </td>
+                <td>${contrato.proveedor || 'No especificado'}</td>
+                <td class="cell-year">${contrato.anio_fundacion_empresa || 'N/D'}</td>
+                <td>${contrato.siglas_institucion || 'N/D'}</td>
+                <td class="cell-procedure">${contrato.tipo_procedimiento || 'N/D'}</td>
+                <td class="cell-date">${formatDate(contrato.fecha_inicio)} - ${formatDate(contrato.fecha_fin)}</td>
+                <td class="cell-amount">${formatMoney(contrato.importe)}</td>
+                <td class="cell-link" style="text-align: center;">
+                    ${contrato.direccion_anuncio ? 
+                        `<a href="${contrato.direccion_anuncio}" target="_blank" rel="noopener noreferrer" class="contract-link" title="Ver contrato">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                        </a>` 
+                        : '<span style="color: var(--text-quaternary);">N/D</span>'
+                    }
+                </td>
+            </tr>
         `;
     });
 
-    if (append) {
-        document.getElementById('contratosList').insertAdjacentHTML('beforeend', html);
-    } else {
+    if (!append) {
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
         document.getElementById('contratosList').innerHTML = html;
+    } else {
+        const tbody = document.querySelector('.contracts-table tbody');
+        if (tbody) {
+            tbody.insertAdjacentHTML('beforeend', html);
+        }
     }
 }
+
+function toggleRow(rowId) {
+    if (expandedRows.has(rowId)) {
+        expandedRows.delete(rowId);
+    } else {
+        expandedRows.add(rowId);
+    }
+    renderContratos(cachedContracts, false);
+}
+
+function sortContracts(contracts, column, order) {
+    const sorted = [...contracts].sort((a, b) => {
+        let valA, valB;
+
+        switch(column) {
+            case 'titulo':
+                valA = (a.titulo || '').toLowerCase();
+                valB = (b.titulo || '').toLowerCase();
+                break;
+            case 'proveedor':
+                valA = (a.proveedor || '').toLowerCase();
+                valB = (b.proveedor || '').toLowerCase();
+                break;
+            case 'anio_fundacion':
+                valA = parseInt(a.anio_fundacion_empresa) || 0;
+                valB = parseInt(b.anio_fundacion_empresa) || 0;
+                break;
+            case 'institucion':
+                valA = (a.siglas_institucion || '').toLowerCase();
+                valB = (b.siglas_institucion || '').toLowerCase();
+                break;
+            case 'procedimiento':
+                valA = (a.tipo_procedimiento || '').toLowerCase();
+                valB = (b.tipo_procedimiento || '').toLowerCase();
+                break;
+            case 'fecha':
+                valA = new Date(a.fecha_inicio || 0);
+                valB = new Date(b.fecha_inicio || 0);
+                break;
+            case 'importe':
+                valA = parseFloat(a.importe) || 0;
+                valB = parseFloat(b.importe) || 0;
+                break;
+            default:
+                return 0;
+        }
+
+        if (valA < valB) return order === 'asc' ? -1 : 1;
+        if (valA > valB) return order === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    return sorted;
+}
+
+function sortTable(column) {
+    if (currentSortColumn === column) {
+        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortOrder = (column === 'importe' || column === 'fecha' || column === 'anio_fundacion') ? 'desc' : 'asc';
+    }
+    renderContratos(cachedContracts, false);
+}
+
+function getSortIcon(column) {
+    if (currentSortColumn !== column) {
+        return '<span class="sort-icon">⇅</span>';
+    }
+    return currentSortOrder === 'asc' 
+        ? '<span class="sort-icon active">↑</span>' 
+        : '<span class="sort-icon active">↓</span>';
+}
+
 // ===========================
 // Mostrar proveedores
 // ===========================
@@ -272,44 +407,33 @@ function renderFilters(filtros) {
         return;
     }
 
-    let buttonsHtml = '';
-    
-    // Instituciones
-    if (filtros.instituciones && Object.keys(filtros.instituciones).length > 0) {
-        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('instituciones', ${JSON.stringify(filtros.instituciones).replace(/"/g, '&quot;')})">
-            Institución (${Object.keys(filtros.instituciones).length})
-        </button>`;
-    }
-    
-    // Tipos de contratación
-    if (filtros.tipos && Object.keys(filtros.tipos).length > 0) {
-        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('tipos', ${JSON.stringify(filtros.tipos).replace(/"/g, '&quot;')})">
-            Tipo (${Object.keys(filtros.tipos).length})
-        </button>`;
-    }
-    
-    // Procedimientos
-    if (filtros.procedimientos && Object.keys(filtros.procedimientos).length > 0) {
-        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('procedimientos', ${JSON.stringify(filtros.procedimientos).replace(/"/g, '&quot;')})">
-            Procedimiento (${Object.keys(filtros.procedimientos).length})
-        </button>`;
-    }
-    
-    // Años
-    if (filtros.anios && Object.keys(filtros.anios).length > 0) {
-        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('anios', ${JSON.stringify(filtros.anios).replace(/"/g, '&quot;')})">
-            Año (${Object.keys(filtros.anios).length})
-        </button>`;
-    }
-    
-    // Estatus
-    if (filtros.estatus && Object.keys(filtros.estatus).length > 0) {
-        buttonsHtml += `<button class="filter-btn" onclick="openFilterModal('estatus', ${JSON.stringify(filtros.estatus).replace(/"/g, '&quot;')})">
-            Estatus (${Object.keys(filtros.estatus).length})
-        </button>`;
-    }
+    availableFilters = filtros;
 
-    document.getElementById('filterButtons').innerHTML = buttonsHtml;
+    const filterButtons = document.getElementById('filterButtons');
+    filterButtons.innerHTML = '';
+
+    const filterConfigs = [
+        { key: 'instituciones', label: 'Institución' },
+        { key: 'tipos', label: 'Tipo' },
+        { key: 'procedimientos', label: 'Procedimiento' },
+        { key: 'anios', label: 'Año' },
+        { key: 'estatus', label: 'Estatus' }
+    ];
+
+    filterConfigs.forEach(config => {
+        if (filtros[config.key] && Object.keys(filtros[config.key]).length > 0) {
+            const button = document.createElement('button');
+            button.className = 'filter-btn';
+            button.textContent = `${config.label} (${Object.keys(filtros[config.key]).length})`;
+            
+            button.addEventListener('click', function() {
+                openFilterModal(config.key);
+            });
+            
+            filterButtons.appendChild(button);
+        }
+    });
+
     document.getElementById('filtersBar').classList.remove('hidden');
 }
 
@@ -319,15 +443,18 @@ function renderFilters(filtros) {
 let currentFilterType = '';
 let currentFilterOptions = {};
 
-function openFilterModal(type, options) {
+function openFilterModal(type) {
     currentFilterType = type;
-    currentFilterOptions = options;
+    currentFilterOptions = availableFilters[type];
     
-    const modal = document.getElementById('filterModal');
+    if (!currentFilterOptions) {
+        return;
+    }
+    
+    const modalEl = document.getElementById('filterModal');
     const modalTitle = document.getElementById('filterModalTitle');
     const modalBody = document.getElementById('filterModalBody');
     
-    // Configurar título
     const titles = {
         'instituciones': 'Filtrar por Institución',
         'tipos': 'Filtrar por Tipo de Contratación',
@@ -337,50 +464,144 @@ function openFilterModal(type, options) {
     };
     modalTitle.textContent = titles[type] || 'Filtrar';
     
-    // Generar checkboxes
     let bodyHtml = '<div class="filter-options">';
-    for (const [key, count] of Object.entries(options)) {
-        const isChecked = activeFilters[type] && activeFilters[type].includes(key) ? 'checked' : '';
+    
+    const allChecked = !pendingFilters[type] || pendingFilters[type].length === 0;
+    const totalCount = Object.values(currentFilterOptions).reduce((sum, count) => sum + count, 0);
+    
+    bodyHtml += `
+        <label class="filter-option filter-option-all">
+            <input type="checkbox" 
+                   value="__ALL__" 
+                   ${allChecked ? 'checked' : ''} 
+                   onchange="toggleAllFilters(this)">
+            <span><strong>Todos</strong> (${totalCount.toLocaleString()} contratos)</span>
+        </label>
+        <hr class="filter-divider">
+    `;
+    
+    for (const [key, count] of Object.entries(currentFilterOptions)) {
+        const isChecked = pendingFilters[type] && pendingFilters[type].includes(key);
+        
         bodyHtml += `
             <label class="filter-option">
-                <input type="checkbox" value="${key}" ${isChecked}>
-                <span>${key} (${count})</span>
+                <input type="checkbox" 
+                       value="${key}" 
+                       ${isChecked ? 'checked' : ''}
+                       onchange="uncheckAllIfIndividual()">
+                <span>${key} (${count.toLocaleString()})</span>
             </label>
         `;
     }
-    bodyHtml += '</div>';
-    modalBody.innerHTML = bodyHtml;
     
-    modal.classList.remove('hidden');
+    bodyHtml += '</div>';
+    
+    modalBody.innerHTML = bodyHtml;
+    modalEl.classList.remove('hidden');
 }
 
 function closeFilterModal() {
     document.getElementById('filterModal').classList.add('hidden');
 }
 
+function toggleAllFilters(checkbox) {
+    if (checkbox.checked) {
+        const allCheckboxes = document.querySelectorAll(
+            '#filterModalBody input[type="checkbox"]:not([value="__ALL__"])'
+        );
+        allCheckboxes.forEach(cb => cb.checked = false);
+    }
+}
+
+function uncheckAllIfIndividual() {
+    const allCheckbox = document.querySelector('#filterModalBody input[value="__ALL__"]');
+    if (allCheckbox) {
+        allCheckbox.checked = false;
+    }
+}
+
 function applyFilters() {
-    const checkboxes = document.querySelectorAll('#filterModalBody input[type="checkbox"]:checked');
+    const checkboxes = document.querySelectorAll(
+        '#filterModalBody input[type="checkbox"]:checked:not([value="__ALL__"])'
+    );
     const selectedValues = Array.from(checkboxes).map(cb => cb.value);
     
+    // SIEMPRE guardar en pendientes, aunque sea vacío (representa "Todos")
     if (selectedValues.length > 0) {
-        activeFilters[currentFilterType] = selectedValues;
+        pendingFilters[currentFilterType] = selectedValues;
     } else {
-        delete activeFilters[currentFilterType];
+        // Si no hay nada seleccionado o "Todos" está marcado, guardar como array vacío
+        pendingFilters[currentFilterType] = [];
     }
     
     closeFilterModal();
-    updateActiveFiltersDisplay();
-    buscar(false); // No resetear filtros
+    updatePendingFiltersDisplay();
 }
 
-function updateActiveFiltersDisplay() {
-    const container = document.getElementById('activeFilters');
-    if (Object.keys(activeFilters).length === 0) {
-        container.innerHTML = '';
+// ===========================
+// Gestión de filtros pendientes
+// ===========================
+function updatePendingFiltersDisplay() {
+    const container = document.getElementById('pendingFilterTags');
+    const area = document.getElementById('pendingFiltersArea');
+    
+    // Mostrar el área si hay CUALQUIER filtro pendiente (incluso vacíos)
+    if (Object.keys(pendingFilters).length === 0) {
+        area.classList.add('hidden');
         return;
     }
     
-    let html = '<span>Filtros activos: </span>';
+    area.classList.remove('hidden');
+    
+    let html = '';
+    for (const [type, values] of Object.entries(pendingFilters)) {
+        if (values.length === 0) {
+            // Si el array está vacío, significa "Todos"
+            const labels = {
+                'instituciones': 'Todas las instituciones',
+                'tipos': 'Todos los tipos',
+                'procedimientos': 'Todos los procedimientos',
+                'anios': 'Todos los años',
+                'estatus': 'Todos los estatus'
+            };
+            html += `<span class="pending-filter-tag">${labels[type] || 'Todos'}</span>`;
+        } else {
+            // Mostrar los valores específicos
+            values.forEach(value => {
+                html += `<span class="pending-filter-tag">${value}</span>`;
+            });
+        }
+    }
+    container.innerHTML = html;
+}
+
+function confirmFilters() {
+    activeFilters = { ...pendingFilters };
+    pendingFilters = {};
+    document.getElementById('pendingFiltersArea').classList.add('hidden');
+    buscar(false);
+}
+
+function cancelPendingFilters() {
+    pendingFilters = {};
+    document.getElementById('pendingFiltersArea').classList.add('hidden');
+}
+
+// ===========================
+// Gestión de filtros activos
+// ===========================
+function updateActiveFiltersDisplay() {
+    const container = document.getElementById('activeFilterTags');
+    const area = document.getElementById('activeFiltersArea');
+    
+    if (Object.keys(activeFilters).length === 0) {
+        area.classList.add('hidden');
+        return;
+    }
+    
+    area.classList.remove('hidden');
+    
+    let html = '';
     for (const [type, values] of Object.entries(activeFilters)) {
         values.forEach(value => {
             html += `<span class="active-filter-tag">${value} 
@@ -388,7 +609,6 @@ function updateActiveFiltersDisplay() {
             </span>`;
         });
     }
-    html += `<button class="clear-filters-btn" onclick="clearAllFilters()">Limpiar todos</button>`;
     container.innerHTML = html;
 }
 
@@ -400,13 +620,15 @@ function removeFilter(type, value) {
         }
     }
     updateActiveFiltersDisplay();
-    buscar(false); // No resetear filtros
+    buscar(false);
 }
 
 function clearAllFilters() {
     activeFilters = {};
-    updateActiveFiltersDisplay();
-    buscar(false); // Ya limpiamos los filtros manualmente
+    pendingFilters = {};
+    document.getElementById('activeFiltersArea').classList.add('hidden');
+    document.getElementById('pendingFiltersArea').classList.add('hidden');
+    buscar(true);
 }
 
 // ===========================
@@ -469,10 +691,11 @@ async function cargarContratos(page, append = false) {
     }
 }
 
+// ===========================
 // Cerrar modal al hacer clic fuera
+// ===========================
 window.onclick = function(event) {
-    const modal = document.getElementById('filterModal');
-    if (event.target == modal) {
+    if (event.target.id === 'filterModal') {
         closeFilterModal();
     }
 }

@@ -1,5 +1,4 @@
 # app/models/contrato.py
-
 from app import db
 from datetime import datetime
 
@@ -27,6 +26,9 @@ class Contrato(db.Model):
     estatus_contrato = db.Column(db.String)
     direccion_anuncio = db.Column(db.Text)
     anio_fuente = db.Column(db.Integer)
+    
+    # ⭐ NUEVO: Agregar columna de año de fundación
+    anio_fundacion_empresa = db.Column(db.Integer)
     
     def get_importe_numerico(self):
         """Obtiene el importe como número flotante"""
@@ -58,8 +60,11 @@ class Contrato(db.Model):
             'fecha_inicio': self.fecha_inicio_contrato.isoformat() if self.fecha_inicio_contrato else None,
             'fecha_fin': self.fecha_fin_contrato.isoformat() if self.fecha_fin_contrato else None,
             'estatus': self.estatus_contrato,
-            'url_compranet': self.direccion_anuncio,
-            'anio': self.anio_fuente
+            'anio': self.anio_fuente,
+            
+            # ⭐ NUEVOS CAMPOS AGREGADOS
+            'direccion_anuncio': self.direccion_anuncio,
+            'anio_fundacion_empresa': self.anio_fundacion_empresa
         }
     
     def __repr__(self):

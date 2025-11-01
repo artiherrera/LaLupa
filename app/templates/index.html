@@ -38,15 +38,28 @@
 
         <!-- Área de resultados -->
         <div id="resultsArea" class="hidden">
-            
             <!-- Resumen de resultados -->
             <div id="resultsSummary" class="results-summary"></div>
-            
+
             <!-- Barra de filtros -->
             <div id="filtersBar" class="filters-bar hidden">
                 <div class="filter-label">REFINAR BÚSQUEDA:</div>
                 <div class="filter-buttons" id="filterButtons"></div>
-                <div id="activeFilters" class="active-filters"></div>
+                
+                <!-- ⭐ ÁREA DE FILTROS PENDIENTES ⭐ -->
+                <div id="pendingFiltersArea" class="filters-area hidden">
+                    <span class="filter-status">📌 Filtros seleccionados:</span>
+                    <div id="pendingFilterTags" class="filter-tags-container"></div>
+                    <button onclick="confirmFilters()" class="confirm-filters-btn">Confirmar</button>
+                    <button onclick="cancelPendingFilters()" class="cancel-filters-btn">Cancelar</button>
+                </div>
+                
+                <!-- ⭐ ÁREA DE FILTROS APLICADOS ⭐ -->
+                <div id="activeFiltersArea" class="filters-area hidden">
+                    <span class="filter-status">✓ Filtros aplicados:</span>
+                    <div id="activeFilterTags" class="filter-tags-container"></div>
+                    <button onclick="clearAllFilters()" class="clear-filters-btn">Limpiar todos</button>
+                </div>
             </div>
 
             <!-- Sección de empresas -->

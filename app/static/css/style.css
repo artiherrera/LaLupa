@@ -312,38 +312,6 @@ header h1 {
     color: var(--primary);
 }
 
-/* Active Filters - Tags */
-.active-filters {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.filter-chip {
-    background: rgba(0, 122, 255, 0.15);
-    color: var(--primary);
-    padding: 6px 12px 6px 16px;
-    border-radius: 20px;
-    font-size: 13px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid rgba(0, 122, 255, 0.3);
-}
-
-.filter-chip .remove {
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 16px;
-    line-height: 1;
-    opacity: 0.7;
-    transition: opacity 0.2s var(--ease);
-}
-
-.filter-chip .remove:hover {
-    opacity: 1;
-}
-
 /* Results Section - Content Cards */
 .results-section {
     background: var(--surface);
@@ -412,8 +380,8 @@ header h1 {
     color: var(--success);
 }
 
-/* Contract Items */
-.contract-item {
+/* Contract Cards */
+.contract-card {
     padding: 20px;
     border-radius: 12px;
     margin-bottom: 12px;
@@ -423,24 +391,23 @@ header h1 {
     border-left: 3px solid transparent;
 }
 
-.contract-item:hover {
+.contract-card:hover {
     background: var(--glass-hover);
     border-color: var(--glass-border);
     border-left-color: var(--primary);
     transform: translateX(4px);
 }
 
-.contract-header {
+.contract-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 12px;
 }
 
-.contract-amount {
-    font-size: 1.375rem;
-    font-weight: 700;
-    color: var(--success);
+.contract-title-section {
+    flex: 1;
+    margin-right: 20px;
 }
 
 .contract-title {
@@ -450,32 +417,72 @@ header h1 {
     font-size: 1.125rem;
 }
 
-.contract-details {
-    font-size: 0.875rem;
+.contract-description {
     color: var(--text-tertiary);
-    line-height: 1.6;
+    font-size: 0.875rem;
+    margin-bottom: 8px;
 }
 
-/* Modal - Clean Overlay */
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.75);
+.contract-amount-section {
+    text-align: right;
+}
+
+.contract-amount {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--success);
+}
+
+.contract-currency {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.contract-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.detail-row {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
+    gap: 8px;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: var(--text-tertiary);
+    font-size: 0.875rem;
+}
+
+.detail-value {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* ===========================
+   MODAL - CORREGIDO
+   =========================== */
+.modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    z-index: 10000 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s var(--ease);
 }
 
-.modal.active {
-    opacity: 1;
-    visibility: visible;
+.modal:not(.hidden) {
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
 .modal-content {
@@ -492,7 +499,7 @@ header h1 {
     transition: all 0.3s var(--ease-spring);
 }
 
-.modal.active .modal-content {
+.modal:not(.hidden) .modal-content {
     transform: scale(1) translateY(0);
 }
 
@@ -523,51 +530,240 @@ header h1 {
     background: var(--glass-hover);
 }
 
-/* Mejorar los contract items existentes */
-.contract-subtitle {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin: 8px 0;
-    line-height: 1.5;
-}
-
-.contract-meta {
-    color: var(--text-tertiary);
-    font-size: 0.85rem;
-    margin: 8px 0;
-}
-
-.contract-meta span {
-    display: inline-block;
-    margin-right: 4px;
-}
-
-/* Filter Options in Modal */
-.filter-option {
-    padding: 12px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    transition: all 0.2s var(--ease);
+/* ===========================
+   ÁREAS DE FILTROS
+   =========================== */
+.filters-area {
+    margin: 15px 0;
+    padding: 15px;
+    background: var(--surface-elevated);
     border-radius: 8px;
+    border: 1px solid var(--glass-border);
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.filter-status {
+    font-weight: bold;
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.filter-tags-container {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Tags Pendientes */
+.pending-filter-tag {
+    display: inline-block;
+    background: #fff3cd;
+    color: #856404;
+    border: 2px dashed #ffc107;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+/* Tags Activos */
+.active-filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary);
+    color: white;
+    border: 2px solid var(--primary-dark);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.active-filter-tag:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.active-filter-tag button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.active-filter-tag button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.2);
+}
+
+/* Botones de Acción */
+.confirm-filters-btn {
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.confirm-filters-btn:hover {
+    background: #28a745;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.cancel-filters-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.cancel-filters-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.clear-filters-btn {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.clear-filters-btn:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Opción "Todos" en Modal */
+.filter-option-all {
+    background: linear-gradient(135deg, rgba(0, 122, 255, 0.1) 0%, rgba(0, 122, 255, 0.05) 100%);
+    border: 2px solid var(--primary) !important;
+    padding: 12px 15px !important;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.filter-option-all:hover {
+    background: linear-gradient(135deg, rgba(0, 122, 255, 0.15) 0%, rgba(0, 122, 255, 0.1) 100%);
+    transform: translateX(3px);
+    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
+}
+
+.filter-option-all span {
+    font-weight: bold;
+    color: var(--primary);
+    font-size: 15px;
+}
+
+/* Línea Divisoria */
+.filter-divider {
+    border: none;
+    border-top: 2px solid var(--glass-border);
+    margin: 15px 0;
+    width: 100%;
+}
+
+/* Opciones de Filtro */
+.filter-options {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.filter-options::-webkit-scrollbar {
+    width: 8px;
+}
+
+.filter-options::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.filter-options::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 4px;
+}
+
+.filter-options::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin: 4px 0;
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
 .filter-option:hover {
     background: var(--glass-hover);
+    border-color: var(--primary);
+    transform: translateX(3px);
 }
 
 .filter-option input[type="checkbox"] {
     margin-right: 12px;
-    accent-color: var(--primary);
     width: 18px;
     height: 18px;
+    cursor: pointer;
+    accent-color: var(--primary);
 }
 
-.filter-count {
-    color: var(--text-tertiary);
-    font-size: 0.875rem;
+.filter-option span {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.filter-option input[type="checkbox"]:checked + span {
+    font-weight: 600;
+    color: var(--primary);
 }
 
 /* Apply Button */
@@ -591,10 +787,6 @@ header h1 {
     box-shadow: var(--shadow-md);
 }
 
-.apply-btn:active {
-    transform: translateY(0);
-}
-
 /* Utility Classes */
 .hidden {
     display: none !important;
@@ -609,25 +801,6 @@ header h1 {
     text-align: center;
     margin: 24px 0;
     border: 1px solid rgba(255, 59, 48, 0.3);
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-    width: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg-secondary);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--glass-border);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Responsive Design */
@@ -670,65 +843,314 @@ header h1 {
     .results-section {
         padding: 24px;
     }
-}
-
-/* Light Mode Support */
-@media (prefers-color-scheme: light) {
-    :root {
-        --bg-primary: #FFFFFF;
-        --bg-secondary: #F2F2F7;
-        --bg-tertiary: #FFFFFF;
-        --surface: #FFFFFF;
-        --surface-elevated: #F2F2F7;
-        
-        --text-primary: rgba(0, 0, 0, 0.85);
-        --text-secondary: rgba(0, 0, 0, 0.7);
-        --text-tertiary: rgba(0, 0, 0, 0.5);
-        --text-quaternary: rgba(0, 0, 0, 0.35);
-        
-        --glass: rgba(0, 0, 0, 0.02);
-        --glass-hover: rgba(0, 0, 0, 0.04);
-        --glass-border: rgba(0, 0, 0, 0.08);
-        
-        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-        --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.1);
-        --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.12);
+    
+    .filters-area {
+        flex-direction: column;
+        align-items: stretch;
     }
     
-    body::before {
-        background: radial-gradient(
-            circle at 50% 0%,
-            rgba(0, 122, 255, 0.03) 0%,
-            transparent 50%
-        );
+    .filter-tags-container {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .confirm-filters-btn,
+    .cancel-filters-btn,
+    .clear-filters-btn {
+        width: 100%;
+        margin-top: 5px;
     }
 }
 
-/* Accessibility - Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+
+/* ===========================
+   TABLA DE CONTRATOS - REDISEÑADA
+   =========================== */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+}
+
+.contracts-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+}
+
+.contracts-table thead {
+    background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.contracts-table th {
+    padding: 20px 16px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--primary);
+    white-space: nowrap;
+    user-select: none;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--surface-elevated);
+}
+
+.contracts-table th.sortable {
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+    position: relative;
+}
+
+.contracts-table th.sortable:hover {
+    background: var(--glass-hover);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.contracts-table th.sortable.active {
+    color: var(--primary);
+    background: rgba(0, 122, 255, 0.15);
+}
+
+.sort-icon {
+    margin-left: 8px;
+    font-size: 14px;
+    opacity: 0.4;
+    transition: all 0.2s;
+    display: inline-block;
+}
+
+.sort-icon.active {
+    opacity: 1;
+    color: var(--primary);
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.contracts-table tbody tr {
+    border-bottom: 1px solid var(--glass-border);
+    transition: all 0.2s var(--ease);
+    background: var(--surface);
+}
+
+.contracts-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.contracts-table tbody tr:hover {
+    background: var(--glass-hover) !important;
+    transform: scale(1.002);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.1);
+}
+
+.contracts-table td {
+    padding: 20px 16px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    vertical-align: top;
+    line-height: 1.6;
+}
+
+/* Columnas específicas con anchos fijos */
+.cell-title {
+    min-width: 280px;
+    max-width: 350px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.cell-description {
+    min-width: 320px;
+    max-width: 420px;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.cell-content {
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.cell-year {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 80px;
+}
+
+.cell-procedure {
+    max-width: 180px;
+    font-size: 13px;
+    min-width: 150px;
+}
+
+.cell-date {
+    white-space: nowrap;
+    font-size: 13px;
+    min-width: 200px;
+    color: var(--text-tertiary);
+}
+
+.cell-amount {
+    text-align: right;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--success);
+    white-space: nowrap;
+    min-width: 150px;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.cell-link {
+    text-align: center;
+    min-width: 80px;
+}
+
+/* Botón expandir - Mejorado */
+.btn-expand {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 4px 10px;
+    background: rgba(0, 122, 255, 0.15);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.btn-expand:hover {
+    background: var(--primary);
+    color: white;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+}
+
+/* Enlace al contrato - Mejorado */
+.contract-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    transition: all 0.3s var(--ease);
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
+}
+
+.contract-link:hover {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, #003D99 100%);
+    transform: translateY(-3px) scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+}
+
+.contract-link svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Scroll personalizado para la tabla */
+.table-container::-webkit-scrollbar {
+    height: 12px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 10px;
+    border: 2px solid var(--bg-secondary);
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 1400px) {
+    .contracts-table {
+        font-size: 13px;
+    }
+    
+    .contracts-table th,
+    .contracts-table td {
+        padding: 16px 12px;
+    }
+    
+    .cell-amount {
+        font-size: 16px;
     }
 }
 
-/* High Contrast Mode */
-@media (prefers-contrast: high) {
-    :root {
-        --glass-border: rgba(255, 255, 255, 0.3);
+@media (max-width: 1200px) {
+    .contracts-table th {
+        font-size: 10px;
+        padding: 16px 10px;
     }
     
-    .search-container,
-    .results-section,
-    .filters-bar {
-        border-width: 2px;
+    .contracts-table td {
+        font-size: 12px;
+        padding: 14px 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-container {
+        border-radius: 12px;
     }
     
-    #searchInput:focus {
-        outline: 2px solid var(--primary);
-        outline-offset: 2px;
+    .contracts-table th {
+        font-size: 9px;
+        padding: 14px 8px;
     }
+    
+    .contracts-table td {
+        font-size: 11px;
+        padding: 12px 8px;
+    }
+    
+    .cell-title,
+    .cell-description {
+        min-width: 200px;
+    }
+    
+    .cell-amount {
+        font-size: 14px;
+    }
+    
+    .contract-link {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .contract-link svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+/* Mejorar legibilidad en N/D */
+.contracts-table td:contains("N/D") {
+    color: var(--text-quaternary);
+    font-style: italic;
 }

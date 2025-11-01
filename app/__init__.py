@@ -178,14 +178,22 @@ def create_app(config_name=None):
     app.after_request(log_response)
     
     # ========== REGISTRAR BLUEPRINTS ==========
-    
+
     # Blueprint principal (rutas de páginas)
     from app.routes import main_bp
     app.register_blueprint(main_bp)
-    
+
     # Blueprint de API de búsqueda - IMPORTANTE: con prefijo /api
     from app.api.search import search_bp
     app.register_blueprint(search_bp, url_prefix='/api')
+
+    # Blueprint de API de estadísticas
+    from app.api.stats import stats_bp
+    app.register_blueprint(stats_bp, url_prefix='/api')
+
+    # Blueprint de API de contratos (paginación)
+    from app.api.contracts import contracts_bp
+    app.register_blueprint(contracts_bp, url_prefix='/api')
     
     # ========== MANEJADORES DE ERRORES ==========
     

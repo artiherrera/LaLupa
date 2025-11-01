@@ -159,12 +159,12 @@ async function buscar(resetFilters = true) {
 // ===========================
 function renderResultsSummary(data, searchType) {
     const searchTypeLabels = {
-        'todo': '📝 Búsqueda general',
-        'institucion': '🏢 Institución',
-        'empresa': '💼 Proveedor',
-        'descripcion': '📝 Descripción',
-        'titulo': '📄 Título',
-        'rfc': '🔢 RFC'
+        'todo': 'Búsqueda general',
+        'institucion': 'Institución',
+        'empresa': 'Proveedor',
+        'descripcion': 'Descripción',
+        'titulo': 'Título',
+        'rfc': 'RFC'
     };
 
     const summaryHtml = `
@@ -186,7 +186,7 @@ function renderAggregatesIntelligent(data, searchType) {
             mostrarProveedores(data.proveedores);
             document.getElementById('empresasSection').classList.remove('hidden');
             // Cambiar título
-            document.querySelector('#empresasSection h2').textContent = `💼 PROVEEDORES (¿A quién le compra?)`;
+            document.querySelector('#empresasSection h2').textContent = `PROVEEDORES (¿A quién le compra?)`;
         } else {
             document.getElementById('empresasSection').classList.add('hidden');
         }
@@ -199,7 +199,7 @@ function renderAggregatesIntelligent(data, searchType) {
             mostrarInstituciones(data.instituciones);
             document.getElementById('institucionesSection').classList.remove('hidden');
             // Cambiar título
-            document.querySelector('#institucionesSection h2').textContent = `🏢 CLIENTES (¿A quién le vende?)`;
+            document.querySelector('#institucionesSection h2').textContent = `CLIENTES (¿A quién le vende?)`;
         } else {
             document.getElementById('institucionesSection').classList.add('hidden');
         }
@@ -211,7 +211,7 @@ function renderAggregatesIntelligent(data, searchType) {
         if (data.proveedores && data.proveedores.length > 0) {
             mostrarProveedores(data.proveedores);
             document.getElementById('empresasSection').classList.remove('hidden');
-            document.querySelector('#empresasSection h2').textContent = `🏢 TOP PROVEEDORES`;
+            document.querySelector('#empresasSection h2').textContent = `TOP PROVEEDORES`;
         } else {
             document.getElementById('empresasSection').classList.add('hidden');
         }
@@ -219,7 +219,7 @@ function renderAggregatesIntelligent(data, searchType) {
         if (data.instituciones && data.instituciones.length > 0) {
             mostrarInstituciones(data.instituciones);
             document.getElementById('institucionesSection').classList.remove('hidden');
-            document.querySelector('#institucionesSection h2').textContent = `🏛️ TOP INSTITUCIONES`;
+            document.querySelector('#institucionesSection h2').textContent = `TOP INSTITUCIONES`;
         } else {
             document.getElementById('institucionesSection').classList.add('hidden');
         }

@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LaLupa 🔍 - Buscador de Contratos Gubernamentales</title>
+    <title>LaLupa - Buscador de Contratos Gubernamentales</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>LaLupa 🔍</h1>
+            <h1>LaLupa</h1>
             <p class="subtitle">Buscador de Contratos Gubernamentales de México</p>
         </header>
 
@@ -19,35 +19,35 @@
             <!-- Tabs de tipo de búsqueda -->
             <div class="search-tabs">
                 <button class="search-tab active" data-type="todo" data-placeholder="Buscar en todo: medicamentos, construcción, servicios...">
-                    📝 Todo
+                    Todo
                 </button>
                 <button class="search-tab" data-type="institucion" data-placeholder="Buscar institución: IMSS, CFE, PEMEX, Secretaría de Salud...">
-                    🏢 Institución
+                    Institución
                 </button>
                 <button class="search-tab" data-type="empresa" data-placeholder="Buscar proveedor: Farmacias Guadalajara, IBM, Coca Cola...">
-                    💼 Proveedor
+                    Proveedor
                 </button>
                 <button class="search-tab" data-type="descripcion" data-placeholder="Buscar en descripción: medicamentos, equipos, servicios...">
-                    📝 Descripción
+                    Descripción
                 </button>
                 <button class="search-tab" data-type="titulo" data-placeholder="Buscar en título del contrato...">
-                    📄 Título
+                    Título
                 </button>
                 <button class="search-tab" data-type="rfc" data-placeholder="Buscar por RFC: ABC123456XYZ...">
-                    🔢 RFC
+                    RFC
                 </button>
             </div>
 
             <!-- Barra de búsqueda -->
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Buscar en todo: medicamentos, construcción, servicios..." autofocus>
-                <button id="searchBtn" type="button" onclick="buscar()">🔍 Buscar</button>
-                <button id="helpBtn" type="button" onclick="toggleSearchHelp()" title="Ayuda de búsqueda">❓</button>
+                <button id="searchBtn" type="button" onclick="buscar()">Buscar</button>
+                <button id="helpBtn" type="button" onclick="toggleSearchHelp()" title="Ayuda de búsqueda">?</button>
             </div>
 
             <!-- Ayuda de búsqueda (oculto por defecto) -->
             <div id="searchHelp" class="search-help hidden">
-                <div class="search-help-title">🎯 Operadores de Búsqueda</div>
+                <div class="search-help-title">Operadores de Búsqueda</div>
                 <div class="search-help-content">
                     <div class="help-item">
                         <span class="help-operator">"frase exacta"</span>
@@ -89,17 +89,17 @@
                 <div class="filter-label">REFINAR BÚSQUEDA:</div>
                 <div class="filter-buttons" id="filterButtons"></div>
                 
-                <!-- ⭐ ÁREA DE FILTROS PENDIENTES ⭐ -->
+                <!-- ÁREA DE FILTROS PENDIENTES -->
                 <div id="pendingFiltersArea" class="filters-area hidden">
-                    <span class="filter-status">📌 Filtros seleccionados:</span>
+                    <span class="filter-status">Filtros seleccionados:</span>
                     <div id="pendingFilterTags" class="filter-tags-container"></div>
                     <button onclick="confirmFilters()" class="confirm-filters-btn">Confirmar</button>
                     <button onclick="cancelPendingFilters()" class="cancel-filters-btn">Cancelar</button>
                 </div>
-                
-                <!-- ⭐ ÁREA DE FILTROS APLICADOS ⭐ -->
+
+                <!-- ÁREA DE FILTROS APLICADOS -->
                 <div id="activeFiltersArea" class="filters-area hidden">
-                    <span class="filter-status">✓ Filtros aplicados:</span>
+                    <span class="filter-status">Filtros aplicados:</span>
                     <div id="activeFilterTags" class="filter-tags-container"></div>
                     <button onclick="clearAllFilters()" class="clear-filters-btn">Limpiar todos</button>
                 </div>
@@ -107,19 +107,19 @@
 
             <!-- Sección de empresas -->
             <div id="empresasSection" class="results-section">
-                <h2>🏢 PROVEEDORES</h2>
+                <h2>PROVEEDORES</h2>
                 <div id="empresasList" class="grouped-list"></div>
             </div>
 
             <!-- Sección de instituciones -->
             <div id="institucionesSection" class="results-section">
-                <h2>🏛️ INSTITUCIONES</h2>
+                <h2>INSTITUCIONES</h2>
                 <div id="institucionesList" class="grouped-list"></div>
             </div>
 
             <!-- Sección de contratos -->
             <div id="contratosSection" class="results-section">
-                <h2>📄 CONTRATOS</h2>
+                <h2>CONTRATOS</h2>
                 <div id="contratosList" class="contracts-list"></div>
                 <!-- Sentinel para scroll infinito -->
                 <div id="scrollSentinel"></div>

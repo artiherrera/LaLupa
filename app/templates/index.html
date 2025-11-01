@@ -16,17 +16,32 @@
 
         <!-- Barra de búsqueda -->
         <div class="search-container">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Buscar contratos..." autofocus>
-                <button id="searchBtn" type="button" onclick="buscar()">Buscar</button>
+            <!-- Tabs de tipo de búsqueda -->
+            <div class="search-tabs">
+                <button class="search-tab active" data-type="todo" data-placeholder="Buscar en todo: medicamentos, construcción, servicios...">
+                    📝 Todo
+                </button>
+                <button class="search-tab" data-type="institucion" data-placeholder="Buscar institución: IMSS, CFE, PEMEX, Secretaría de Salud...">
+                    🏢 Institución
+                </button>
+                <button class="search-tab" data-type="empresa" data-placeholder="Buscar proveedor: Farmacias Guadalajara, IBM, Coca Cola...">
+                    💼 Proveedor
+                </button>
+                <button class="search-tab" data-type="descripcion" data-placeholder="Buscar en descripción: medicamentos, equipos, servicios...">
+                    📝 Descripción
+                </button>
+                <button class="search-tab" data-type="titulo" data-placeholder="Buscar en título del contrato...">
+                    📄 Título
+                </button>
+                <button class="search-tab" data-type="rfc" data-placeholder="Buscar por RFC: ABC123456XYZ...">
+                    🔢 RFC
+                </button>
             </div>
-            <div class="search-options">
-                <label><input type="radio" name="searchType" value="descripcion" checked> Descripción</label>
-                <label><input type="radio" name="searchType" value="titulo"> Título</label>
-                <label><input type="radio" name="searchType" value="empresa"> Proveedor</label>
-                <label><input type="radio" name="searchType" value="rfc"> RFC</label>
-                <label><input type="radio" name="searchType" value="institucion"> Institución</label>
-                <label><input type="radio" name="searchType" value="todo"> Todo</label>
+
+            <!-- Barra de búsqueda -->
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Buscar en todo: medicamentos, construcción, servicios..." autofocus>
+                <button id="searchBtn" type="button" onclick="buscar()">🔍 Buscar</button>
             </div>
         </div>
 

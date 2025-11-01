@@ -123,10 +123,55 @@ header h1 {
     box-shadow: var(--shadow-md);
 }
 
+/* Search Tabs - Modern Design */
+.search-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.search-tab {
+    padding: 12px 20px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s var(--ease);
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.search-tab:hover {
+    background: var(--glass-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+}
+
+.search-tab.active {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+}
+
+.search-tab.active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+}
+
 .search-box {
     display: flex;
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 0;
 }
 
 /* Input Field - Minimal Glass */

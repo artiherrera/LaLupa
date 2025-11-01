@@ -23,12 +23,34 @@ let expandedRows = new Set();
 // Inicialización
 // ===========================
 document.addEventListener('DOMContentLoaded', function() {
+    // Event listener para buscar con Enter
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             buscar();
         }
     });
 
+    // Event listeners para los tabs
+    document.querySelectorAll('.search-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Quitar active de todos los tabs
+            document.querySelectorAll('.search-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+
+            // Activar este tab
+            this.classList.add('active');
+
+            // Cambiar placeholder del input
+            const placeholder = this.dataset.placeholder;
+            document.getElementById('searchInput').placeholder = placeholder;
+
+            // Enfocar el input
+            document.getElementById('searchInput').focus();
+        });
+    });
+
+    // Observer para scroll infinito
     const sentinel = document.getElementById('scrollSentinel');
     if (sentinel) {
         const observer = new IntersectionObserver((entries) => {
@@ -50,7 +72,9 @@ async function buscar(resetFilters = true) {
         return;
     }
 
-    const searchType = document.querySelector('input[name="searchType"]:checked').value;
+    // Obtener el tipo de búsqueda del tab activo
+    const activeTab = document.querySelector('.search-tab.active');
+    const searchType = activeTab ? activeTab.dataset.type : 'todo';
     lastQuery = query;
     lastSearchType = searchType;
     
@@ -93,25 +117,26 @@ async function buscar(resetFilters = true) {
         }
 
         document.getElementById('resultsArea').classList.remove('hidden');
-        renderResultsSummary(data);
-        
-        if (Object.keys(activeFilters).length > 0) {
-            renderAggregates(data);
-            
+        renderResultsSummary(data, searchType);
+
+        // Mostrar agregados de forma inteligente según el tipo de búsqueda
+        renderAggregatesIntelligent(data, searchType);
+
+        // Si hay filtros aplicados O si es búsqueda específica, mostrar contratos
+        if (Object.keys(activeFilters).length > 0 || searchType === 'institucion' || searchType === 'empresa') {
             if (data.contratos && data.contratos.length > 0) {
                 renderContratos(data.contratos, false);
                 document.getElementById('contratosSection').classList.remove('hidden');
             }
         } else {
-            document.getElementById('empresasSection').classList.add('hidden');
-            document.getElementById('institucionesSection').classList.add('hidden');
+            // Solo mostrar contratos si hay filtros aplicados
             document.getElementById('contratosSection').classList.add('hidden');
         }
-        
+
         if (data.filtros_disponibles) {
             renderFilters(data.filtros_disponibles);
         }
-        
+
         updateActiveFiltersDisplay();
 
     } catch (error) {
@@ -124,19 +149,81 @@ async function buscar(resetFilters = true) {
 // ===========================
 // Render del resumen de resultados
 // ===========================
-function renderResultsSummary(data) {
+function renderResultsSummary(data, searchType) {
+    const searchTypeLabels = {
+        'todo': '📝 Búsqueda general',
+        'institucion': '🏢 Institución',
+        'empresa': '💼 Proveedor',
+        'descripcion': '📝 Descripción',
+        'titulo': '📄 Título',
+        'rfc': '🔢 RFC'
+    };
+
     const summaryHtml = `
-        <strong>Resultados para:</strong> "${data.query}" | 
-        <strong>Tipo de búsqueda:</strong> ${data.search_type} | 
-        <strong>Total:</strong> ${data.total.toLocaleString()} contratos | 
+        <strong>Resultados para:</strong> "${data.query}" |
+        <strong>Tipo:</strong> ${searchTypeLabels[searchType] || searchType} |
+        <strong>Total:</strong> ${data.total.toLocaleString()} contratos |
         <strong>Monto total:</strong> ${formatMoney(data.monto_total)}
     `;
     document.getElementById('resultsSummary').innerHTML = summaryHtml;
 }
 
 // ===========================
-// Render de agregados
+// Render inteligente de agregados según tipo de búsqueda
 // ===========================
+function renderAggregatesIntelligent(data, searchType) {
+    // Si busco por institución, mostrar solo proveedores
+    if (searchType === 'institucion') {
+        if (data.proveedores && data.proveedores.length > 0) {
+            mostrarProveedores(data.proveedores);
+            document.getElementById('empresasSection').classList.remove('hidden');
+            // Cambiar título
+            document.querySelector('#empresasSection h2').textContent = `💼 PROVEEDORES (¿A quién le compra?)`;
+        } else {
+            document.getElementById('empresasSection').classList.add('hidden');
+        }
+        // Ocultar instituciones (no tiene sentido mostrarlas)
+        document.getElementById('institucionesSection').classList.add('hidden');
+    }
+    // Si busco por proveedor, mostrar solo instituciones
+    else if (searchType === 'empresa') {
+        if (data.instituciones && data.instituciones.length > 0) {
+            mostrarInstituciones(data.instituciones);
+            document.getElementById('institucionesSection').classList.remove('hidden');
+            // Cambiar título
+            document.querySelector('#institucionesSection h2').textContent = `🏢 CLIENTES (¿A quién le vende?)`;
+        } else {
+            document.getElementById('institucionesSection').classList.add('hidden');
+        }
+        // Ocultar proveedores (no tiene sentido mostrarlos)
+        document.getElementById('empresasSection').classList.add('hidden');
+    }
+    // Para búsqueda general, mostrar ambos
+    else {
+        if (data.proveedores && data.proveedores.length > 0) {
+            mostrarProveedores(data.proveedores);
+            document.getElementById('empresasSection').classList.remove('hidden');
+            document.querySelector('#empresasSection h2').textContent = `🏢 TOP PROVEEDORES`;
+        } else {
+            document.getElementById('empresasSection').classList.add('hidden');
+        }
+
+        if (data.instituciones && data.instituciones.length > 0) {
+            mostrarInstituciones(data.instituciones);
+            document.getElementById('institucionesSection').classList.remove('hidden');
+            document.querySelector('#institucionesSection h2').textContent = `🏛️ TOP INSTITUCIONES`;
+        } else {
+            document.getElementById('institucionesSection').classList.add('hidden');
+        }
+    }
+}
+
+// ===========================
+// Render de agregados (DEPRECADO - usar renderAggregatesIntelligent)
+// ===========================
+// Esta función se mantiene comentada por compatibilidad
+// pero ya no se usa. Reemplazada por renderAggregatesIntelligent()
+/*
 function renderAggregates(data) {
     if (data.proveedores && data.proveedores.length > 0) {
         mostrarProveedores(data.proveedores);
@@ -152,6 +239,7 @@ function renderAggregates(data) {
         document.getElementById('institucionesSection').classList.add('hidden');
     }
 }
+*/
 
 // ===========================
 // Render de contratos - TABLA COMPLETA

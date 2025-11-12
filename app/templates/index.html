@@ -10,7 +10,7 @@
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>LaLupa</h1>
+            <h1>🔍 LaLupa</h1>
             <p class="subtitle">Buscador de Contratos Gubernamentales de México</p>
         </header>
 
@@ -84,45 +84,87 @@
             <!-- Resumen de resultados -->
             <div id="resultsSummary" class="results-summary"></div>
 
-            <!-- Barra de filtros -->
-            <div id="filtersBar" class="filters-bar hidden">
-                <div class="filter-label">REFINAR BÚSQUEDA:</div>
-                <div class="filter-buttons" id="filterButtons"></div>
-                
-                <!-- ÁREA DE FILTROS PENDIENTES -->
-                <div id="pendingFiltersArea" class="filters-area hidden">
-                    <span class="filter-status">Filtros seleccionados:</span>
-                    <div id="pendingFilterTags" class="filter-tags-container"></div>
-                    <button onclick="confirmFilters()" class="confirm-filters-btn">Confirmar</button>
-                    <button onclick="cancelPendingFilters()" class="cancel-filters-btn">Cancelar</button>
-                </div>
-
-                <!-- ÁREA DE FILTROS APLICADOS -->
-                <div id="activeFiltersArea" class="filters-area hidden">
-                    <span class="filter-status">Filtros aplicados:</span>
-                    <div id="activeFilterTags" class="filter-tags-container"></div>
-                    <button onclick="clearAllFilters()" class="clear-filters-btn">Limpiar todos</button>
-                </div>
+            <!-- Botón de exportar a PDF -->
+            <div class="export-container">
+                <button id="exportPdfBtn" class="export-pdf-btn" onclick="exportToPDF()">
+                    Descargar PDF Completo
+                </button>
             </div>
 
-            <!-- Sección de empresas -->
-            <div id="empresasSection" class="results-section">
-                <h2>PROVEEDORES</h2>
-                <div id="empresasList" class="grouped-list"></div>
-            </div>
+            <!-- Layout principal: Sidebar + Contenido -->
+            <div class="results-layout">
+                <!-- Sidebar de filtros (estilo Amazon) -->
+                <aside class="filters-sidebar" id="filtersSidebar">
+                    <div class="sidebar-header">
+                        <h3>Refinar resultados</h3>
+                        <button class="clear-all-btn" onclick="clearAllFilters()">Limpiar todo</button>
+                    </div>
 
-            <!-- Sección de instituciones -->
-            <div id="institucionesSection" class="results-section">
-                <h2>INSTITUCIONES</h2>
-                <div id="institucionesList" class="grouped-list"></div>
-            </div>
+                    <!-- Filtros activos -->
+                    <div id="activeFiltersSection" class="active-filters-section hidden">
+                        <div class="filter-section-title">Filtros aplicados</div>
+                        <div id="activeFiltersList" class="active-filters-list"></div>
+                    </div>
 
-            <!-- Sección de contratos -->
-            <div id="contratosSection" class="results-section">
-                <h2>CONTRATOS</h2>
-                <div id="contratosList" class="contracts-list"></div>
-                <!-- Sentinel para scroll infinito -->
-                <div id="scrollSentinel"></div>
+                    <!-- Secciones de filtros -->
+                    <div id="filterSections" class="filter-sections">
+                        <!-- Se llenarán dinámicamente -->
+                    </div>
+                </aside>
+
+                <!-- Contenido principal -->
+                <main class="results-content">
+                    <!-- Controles de ordenamiento y vista -->
+                    <div class="results-controls">
+                        <div class="results-count" id="resultsCount"></div>
+                        <div class="results-sort">
+                            <label>Ordenar por:</label>
+                            <select id="sortSelect" onchange="changeSortOrder()">
+                                <option value="monto_desc">Monto: Mayor a menor</option>
+                                <option value="monto_asc">Monto: Menor a mayor</option>
+                                <option value="fecha_desc">Fecha: Más reciente</option>
+                                <option value="fecha_asc">Fecha: Más antigua</option>
+                                <option value="relevancia">Relevancia</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Sección de agregaciones (TOP 20) -->
+                    <div id="aggregatesSection" class="aggregates-section">
+                        <!-- TOP Proveedores -->
+                        <div id="empresasSection" class="aggregate-card hidden">
+                            <h2>TOP PROVEEDORES</h2>
+                            <div id="empresasList" class="aggregate-list"></div>
+                            <button class="view-all-btn" onclick="showAllProviders()">Ver todos los proveedores</button>
+                        </div>
+
+                        <!-- TOP Instituciones -->
+                        <div id="institucionesSection" class="aggregate-card hidden">
+                            <h2>TOP INSTITUCIONES</h2>
+                            <div id="institucionesList" class="aggregate-list"></div>
+                            <button class="view-all-btn" onclick="showAllInstitutions()">Ver todas las instituciones</button>
+                        </div>
+                    </div>
+
+                    <!-- Sección de contratos -->
+                    <div id="contratosSection" class="contracts-section hidden">
+                        <h2 id="contractsTitle">CONTRATOS</h2>
+                        <div id="contratosList" class="contracts-grid"></div>
+
+                        <!-- Paginación -->
+                        <div id="paginationControls" class="pagination-controls hidden">
+                            <button class="pagination-btn" onclick="goToPrevPage()" id="prevPageBtn">◄ Anterior</button>
+                            <div class="pagination-info">
+                                <span>Página <span id="currentPageNum">1</span> de <span id="totalPagesNum">1</span></span>
+                                <div class="page-jump">
+                                    Ir a: <input type="number" id="pageJumpInput" min="1" value="1">
+                                    <button onclick="jumpToPage()">→</button>
+                                </div>
+                            </div>
+                            <button class="pagination-btn" onclick="goToNextPage()" id="nextPageBtn">Siguiente ►</button>
+                        </div>
+                    </div>
+                </main>
             </div>
         </div>
 
@@ -130,15 +172,9 @@
         <div id="errorMessage" class="error-message hidden"></div>
     </div>
 
-    <!-- Modal para filtros -->
-    <div id="filterModal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close" onclick="closeFilterModal()">&times;</span>
-            <h3 id="filterModalTitle">Filtrar por</h3>
-            <div id="filterModalBody"></div>
-            <button type="button" onclick="applyFilters()" class="apply-btn">Aplicar filtros</button>
-        </div>
-    </div>
+    <!-- jsPDF para exportación a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

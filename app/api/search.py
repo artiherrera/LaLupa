@@ -15,48 +15,63 @@ logger = logging.getLogger(__name__)
 
 @search_bp.route('/search', methods=['POST'])
 def search():
-    """Búsqueda inicial - retorna agregados COMPLETOS y primeros 50 contratos"""
+    """Búsqueda con paginación - retorna agregados COMPLETOS y contratos paginados con ordenamiento"""
     try:
         start_time = time.time()
         data = request.get_json()
-        
+
         # Validar entrada
         search_service = SearchService()
         query_text, search_type = search_service.validate_search_input(
             data.get('query', ''),
             data.get('search_type', 'todo')
         )
-        
+
         filters = data.get('filters', {})
-        
+
+        # Obtener parámetros de paginación y ordenamiento
+        page = data.get('page', 1)
+        per_page = data.get('per_page', 50)
+        sort_order = data.get('sort', 'monto_desc')
+
         if not query_text:
             return jsonify({'error': 'Por favor ingresa un término de búsqueda'}), 400
-        
+
         # Construir la consulta base
         base_query = search_service.build_search_query(query_text, search_type)
-        
+
         # Aplicar filtros
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
-        
-        logger.info(f"Búsqueda: {query_text}, tipo: {search_type}, filtros: {filters}")
-        
+
+        logger.info(f"Búsqueda: {query_text}, tipo: {search_type}, filtros: {filters}, página: {page}, orden: {sort_order}")
+
         # 1. Obtener agregados COMPLETOS de TODOS los resultados
         aggregation_service = AggregationService()
         agregados = aggregation_service.obtener_agregados_optimizado(base_query)
-        
-        # 2. Obtener solo los primeros 50 contratos para mostrar
-        contratos = base_query.order_by(
-            Contrato.importe.desc().nullslast()
-        ).limit(50).all()
-        
+
+        # 2. Aplicar ordenamiento según el parámetro
+        if sort_order == 'monto_desc':
+            base_query = base_query.order_by(Contrato.importe.desc().nullslast())
+        elif sort_order == 'monto_asc':
+            base_query = base_query.order_by(Contrato.importe.asc().nullsfirst())
+        elif sort_order == 'fecha_desc':
+            base_query = base_query.order_by(Contrato.fecha_inicio.desc().nullslast())
+        elif sort_order == 'fecha_asc':
+            base_query = base_query.order_by(Contrato.fecha_inicio.asc().nullsfirst())
+        # 'relevancia' no tiene ordenamiento específico (orden natural de la query)
+
+        # 3. Aplicar paginación
+        offset = (page - 1) * per_page
+        contratos = base_query.offset(offset).limit(per_page).all()
+
         # 3. Obtener filtros disponibles
-        filter_service = FilterService() 
+        filter_service = FilterService()
         filtros_disponibles = filter_service.obtener_filtros_disponibles(base_query)
-        
+
         elapsed_time = time.time() - start_time
         logger.info(f"Búsqueda completada en {elapsed_time:.2f} segundos")
-        
+
         resultado = {
             'query': query_text,
             'search_type': search_type,
@@ -66,54 +81,236 @@ def search():
             'instituciones': agregados['top_instituciones'],
             'contratos': [c.to_dict() for c in contratos],
             'filtros_disponibles': filtros_disponibles,
-            'page': 1,
-            'has_more': agregados['total_contratos'] > 50,
+            'page': page,
+            'has_more': (page * per_page) < agregados['total_contratos'],
             'tiempo_busqueda': f"{elapsed_time:.2f}s"
         }
-        
+
         return jsonify(resultado)
-        
+
     except ValueError as ve:
-        db.session.rollback()  # Rollback en caso de error
+        logger.error(f"Error de validación: {str(ve)}")
+        db.session.rollback()
         return jsonify({'error': str(ve)}), 400
     except Exception as e:
-        db.session.rollback()  # Rollback en caso de error
-        logger.error(f"Error en búsqueda: {str(e)}")
+        logger.error(f"Error en búsqueda: {str(e)}", exc_info=True)
+        db.session.rollback()
         return jsonify({'error': 'Error al procesar la búsqueda'}), 500
     finally:
-        db.session.close()  # Siempre cerrar la sesión
+        # Asegurarse de que la sesión esté limpia
+        try:
+            db.session.remove()
+        except:
+            pass
 
 @search_bp.route('/aggregates', methods=['POST'])
 def get_aggregates_only():
     """Obtiene solo los agregados de TODOS los resultados"""
     try:
         data = request.get_json()
-        
+
         search_service = SearchService()
         query_text, search_type = search_service.validate_search_input(
             data.get('query', ''),
             data.get('search_type', 'todo')
         )
-        
+
         filters = data.get('filters', {})
-        
+
         if not query_text:
             return jsonify({'error': 'Query requerido'}), 400
-        
+
         base_query = search_service.build_search_query(query_text, search_type)
-        
+
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
-        
+
         # Obtener agregados completos
         aggregation_service = AggregationService()
         agregados = aggregation_service.obtener_agregados_optimizado(base_query)
-        
+
         return jsonify(agregados)
-        
+
     except Exception as e:
+        logger.error(f"Error obteniendo agregados: {str(e)}", exc_info=True)
         db.session.rollback()
-        logger.error(f"Error obteniendo agregados: {str(e)}")
         return jsonify({'error': 'Error al obtener agregados'}), 500
     finally:
-        db.session.close()
+        try:
+            db.session.remove()
+        except:
+            pass
+
+@search_bp.route('/all-providers', methods=['POST'])
+def get_all_providers():
+    """Obtiene TODOS los proveedores de los resultados de búsqueda (sin límite)"""
+    try:
+        data = request.get_json()
+
+        search_service = SearchService()
+        query_text, search_type = search_service.validate_search_input(
+            data.get('query', ''),
+            data.get('search_type', 'todo')
+        )
+
+        filters = data.get('filters', {})
+
+        if not query_text:
+            return jsonify({'error': 'Query requerido'}), 400
+
+        base_query = search_service.build_search_query(query_text, search_type)
+
+        if filters:
+            base_query = search_service.apply_filters(base_query, filters)
+
+        # Obtener TODOS los proveedores (sin límite)
+        from app.models import Contrato
+        subquery = base_query.subquery()
+
+        proveedores_query = db.session.query(
+            subquery.c.proveedor_contratista.label('nombre'),
+            subquery.c.rfc.label('rfc'),
+            func.count('*').label('num_contratos'),
+            func.sum(subquery.c.importe).label('monto_total')
+        ).filter(
+            subquery.c.proveedor_contratista.isnot(None)
+        ).group_by(
+            subquery.c.proveedor_contratista,
+            subquery.c.rfc
+        ).order_by(
+            func.sum(subquery.c.importe).desc().nullslast()
+        ).all()  # SIN LÍMITE
+
+        proveedores = []
+        for p in proveedores_query:
+            proveedores.append({
+                'nombre': p.nombre,
+                'rfc': p.rfc if p.rfc and p.rfc != 'XAXX010101000' else 'RFC Genérico',
+                'num_contratos': p.num_contratos,
+                'monto_total': float(p.monto_total or 0)
+            })
+
+        return jsonify({'top_proveedores': proveedores})
+
+    except Exception as e:
+        logger.error(f"Error obteniendo todos los proveedores: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Error al obtener proveedores'}), 500
+    finally:
+        try:
+            db.session.remove()
+        except:
+            pass
+
+@search_bp.route('/all-institutions', methods=['POST'])
+def get_all_institutions():
+    """Obtiene TODAS las instituciones de los resultados de búsqueda (sin límite)"""
+    try:
+        data = request.get_json()
+
+        search_service = SearchService()
+        query_text, search_type = search_service.validate_search_input(
+            data.get('query', ''),
+            data.get('search_type', 'todo')
+        )
+
+        filters = data.get('filters', {})
+
+        if not query_text:
+            return jsonify({'error': 'Query requerido'}), 400
+
+        base_query = search_service.build_search_query(query_text, search_type)
+
+        if filters:
+            base_query = search_service.apply_filters(base_query, filters)
+
+        # Obtener TODAS las instituciones (sin límite)
+        from app.models import Contrato
+        subquery = base_query.subquery()
+
+        instituciones_query = db.session.query(
+            subquery.c.institucion.label('nombre'),
+            subquery.c.siglas_institucion.label('siglas'),
+            func.count('*').label('num_contratos'),
+            func.sum(subquery.c.importe).label('monto_total')
+        ).filter(
+            subquery.c.siglas_institucion.isnot(None)
+        ).group_by(
+            subquery.c.institucion,
+            subquery.c.siglas_institucion
+        ).order_by(
+            func.sum(subquery.c.importe).desc().nullslast()
+        ).all()  # SIN LÍMITE
+
+        instituciones = []
+        for i in instituciones_query:
+            instituciones.append({
+                'nombre': i.nombre,
+                'siglas': i.siglas,
+                'num_contratos': i.num_contratos,
+                'monto_total': float(i.monto_total or 0)
+            })
+
+        return jsonify({'top_instituciones': instituciones})
+
+    except Exception as e:
+        logger.error(f"Error obteniendo todas las instituciones: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Error al obtener instituciones'}), 500
+    finally:
+        try:
+            db.session.remove()
+        except:
+            pass
+
+@search_bp.route('/all-contracts', methods=['POST'])
+def get_all_contracts():
+    """Obtiene TODOS los contratos de los resultados de búsqueda (sin paginación, solo primeros 1000)"""
+    try:
+        data = request.get_json()
+
+        search_service = SearchService()
+        query_text, search_type = search_service.validate_search_input(
+            data.get('query', ''),
+            data.get('search_type', 'todo')
+        )
+
+        filters = data.get('filters', {})
+        sort_order = data.get('sort', 'monto_desc')
+
+        if not query_text:
+            return jsonify({'error': 'Query requerido'}), 400
+
+        base_query = search_service.build_search_query(query_text, search_type)
+
+        if filters:
+            base_query = search_service.apply_filters(base_query, filters)
+
+        # Aplicar ordenamiento
+        if sort_order == 'monto_desc':
+            base_query = base_query.order_by(Contrato.importe.desc().nullslast())
+        elif sort_order == 'monto_asc':
+            base_query = base_query.order_by(Contrato.importe.asc().nullsfirst())
+        elif sort_order == 'fecha_desc':
+            base_query = base_query.order_by(Contrato.fecha_inicio.desc().nullslast())
+        elif sort_order == 'fecha_asc':
+            base_query = base_query.order_by(Contrato.fecha_inicio.asc().nullsfirst())
+
+        # Limitar a 1000 contratos para evitar problemas de memoria
+        contratos = base_query.limit(1000).all()
+
+        return jsonify({
+            'contratos': [c.to_dict() for c in contratos],
+            'total_returned': len(contratos),
+            'limited': len(contratos) == 1000
+        })
+
+    except Exception as e:
+        logger.error(f"Error obteniendo todos los contratos: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': 'Error al obtener contratos'}), 500
+    finally:
+        try:
+            db.session.remove()
+        except:
+            pass

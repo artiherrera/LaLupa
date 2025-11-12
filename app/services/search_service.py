@@ -179,9 +179,9 @@ class SearchService:
             )
         if filters.get('anios'):  # Plural
             try:
-                # Como anio_fuente es VARCHAR, convertir los años a strings
-                anos_str = [str(a) for a in filters['anios']]
-                query = query.filter(Contrato.anio_fuente.in_(anos_str))
+                # anio_fuente es INTEGER, convertir a enteros
+                anos_int = [int(a) for a in filters['anios']]
+                query = query.filter(Contrato.anio_fuente.in_(anos_int))
             except (ValueError, TypeError):
                 pass
     

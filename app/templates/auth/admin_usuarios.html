@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Usuarios - LaLupa</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .admin-header h1 {
+            font-size: 1.8rem;
+            color: #333;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        td {
+            font-size: 0.9rem;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .badge-admin {
+            background: #007AFF;
+            color: white;
+        }
+        .badge-user {
+            background: #e9ecef;
+            color: #495057;
+        }
+        .badge-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .flash-message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .flash-message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .user-email {
+            font-weight: 500;
+        }
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>Administracion de Usuarios</h1>
+            <div class="header-actions">
+                <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Ir a Buscar</a>
+                <a href="{{ url_for('auth.mi_cuenta') }}" class="btn btn-secondary">Mi Cuenta</a>
+                <a href="{{ url_for('auth.crear_usuario') }}" class="btn btn-success">+ Nuevo Usuario</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="section">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Nombre</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th>Creado</th>
+                            <th>Ultimo Acceso</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                        <tr>
+                            <td class="user-email">{{ usuario.email }}</td>
+                            <td>{{ usuario.nombre }}</td>
+                            <td>
+                                {% if usuario.rol == 'admin' %}
+                                <span class="badge badge-admin">Admin</span>
+                                {% else %}
+                                <span class="badge badge-user">Usuario</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if usuario.activo %}
+                                <span class="badge badge-active">Activo</span>
+                                {% else %}
+                                <span class="badge badge-inactive">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ usuario.fecha_creacion.strftime('%d/%m/%Y') if usuario.fecha_creacion else 'N/A' }}</td>
+                            <td>{{ usuario.ultimo_acceso.strftime('%d/%m/%Y %H:%M') if usuario.ultimo_acceso else 'Nunca' }}</td>
+                            <td class="actions">
+                                {% if usuario.id != current_user.id %}
+                                <a href="{{ url_for('auth.toggle_usuario', id=usuario.id) }}"
+                                   class="btn btn-sm {% if usuario.activo %}btn-danger{% else %}btn-success{% endif %}"
+                                   onclick="return confirm('{{ 'Desactivar' if usuario.activo else 'Activar' }} usuario {{ usuario.email }}?')">
+                                    {{ 'Desactivar' if usuario.activo else 'Activar' }}
+                                </a>
+                                {% else %}
+                                <span style="color: #999; font-size: 0.8rem;">(Tu cuenta)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

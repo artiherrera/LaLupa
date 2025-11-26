@@ -1,5 +1,6 @@
 # app/routes.py
 from flask import Blueprint, render_template, request, jsonify
+from flask_login import login_required, current_user
 from app import db
 from sqlalchemy import func, text
 from datetime import datetime, timedelta
@@ -18,8 +19,9 @@ _stats_cache = {
 CACHE_TTL_SECONDS = 3600
 
 @main_bp.route('/')
+@login_required
 def index():
-    """Página principal"""
+    """Pagina principal - requiere autenticacion"""
     return render_template('index.html')
 
 @main_bp.route('/api/filters', methods=['GET'])

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Cuenta - LaLupa</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .account-container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .account-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .account-header h1 {
+            font-size: 1.8rem;
+            color: #333;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .user-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .info-item label {
+            display: block;
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .info-item span {
+            font-weight: 500;
+            color: #333;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        td {
+            font-size: 0.9rem;
+        }
+        .search-query {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .search-link {
+            color: #007AFF;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .search-link:hover {
+            text-decoration: underline;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .session-info {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .session-info strong {
+            color: #2e7d32;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .flash-message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .flash-message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .flash-message.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="account-container">
+        <div class="account-header">
+            <h1>Mi Cuenta</h1>
+            <div class="header-actions">
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Ir a Buscar</a>
+                {% if current_user.es_admin() %}
+                <a href="{{ url_for('auth.admin_usuarios') }}" class="btn btn-secondary">Admin Usuarios</a>
+                {% endif %}
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-danger">Cerrar Sesion</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Informacion del usuario -->
+        <div class="section">
+            <h2>Informacion Personal</h2>
+            <div class="user-info">
+                <div class="info-item">
+                    <label>Nombre</label>
+                    <span>{{ current_user.nombre }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Email</label>
+                    <span>{{ current_user.email }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Rol</label>
+                    <span>{{ current_user.rol | capitalize }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Miembro desde</label>
+                    <span>{{ current_user.fecha_creacion.strftime('%d/%m/%Y') if current_user.fecha_creacion else 'N/A' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sesion actual -->
+        {% if sesion_actual %}
+        <div class="section">
+            <h2>Sesion Actual</h2>
+            <div class="session-info">
+                <strong>Conectado desde:</strong> {{ sesion_actual.ip }} |
+                <strong>Inicio:</strong> {{ sesion_actual.fecha_inicio.strftime('%d/%m/%Y %H:%M') if sesion_actual.fecha_inicio else 'N/A' }} |
+                <strong>Ultima actividad:</strong> {{ sesion_actual.ultima_actividad.strftime('%d/%m/%Y %H:%M') if sesion_actual.ultima_actividad else 'N/A' }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Historial de busquedas -->
+        <div class="section">
+            <h2>Historial de Busquedas</h2>
+            {% if historial %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Busqueda</th>
+                            <th>Tipo</th>
+                            <th>Resultados</th>
+                            <th>Monto Total</th>
+                            <th>Tiempo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for busqueda in historial %}
+                        <tr>
+                            <td>{{ busqueda.fecha.strftime('%d/%m/%Y %H:%M') if busqueda.fecha else 'N/A' }}</td>
+                            <td class="search-query">
+                                <a href="/?q={{ busqueda.query | urlencode }}&type={{ busqueda.tipo_busqueda }}" class="search-link" title="{{ busqueda.query }}">
+                                    {{ busqueda.query[:50] }}{% if busqueda.query|length > 50 %}...{% endif %}
+                                </a>
+                            </td>
+                            <td><span class="badge badge-info">{{ busqueda.tipo_busqueda }}</span></td>
+                            <td>{{ '{:,}'.format(busqueda.resultados_count or 0) }}</td>
+                            <td>${{ '{:,.2f}'.format(busqueda.monto_total or 0) }}</td>
+                            <td>{{ '%.2f' % (busqueda.tiempo_busqueda or 0) }}s</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No has realizado busquedas todavia.</p>
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Ir a Buscar</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Log de accesos -->
+        <div class="section">
+            <h2>Historial de Accesos</h2>
+            {% if accesos %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>IP</th>
+                            <th>Detalles</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for acceso in accesos %}
+                        <tr>
+                            <td>{{ acceso.fecha.strftime('%d/%m/%Y %H:%M') if acceso.fecha else 'N/A' }}</td>
+                            <td>
+                                {% if acceso.tipo == 'login' %}
+                                <span class="badge badge-success">Login</span>
+                                {% elif acceso.tipo == 'logout' %}
+                                <span class="badge badge-info">Logout</span>
+                                {% elif acceso.tipo == 'expulsado' %}
+                                <span class="badge badge-warning">Expulsado</span>
+                                {% else %}
+                                <span class="badge">{{ acceso.tipo }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ acceso.ip }}</td>
+                            <td>{{ acceso.detalles or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No hay registros de acceso.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

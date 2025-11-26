@@ -5,15 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LaLupa - Buscador de Contratos Gubernamentales</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .user-nav {
+            position: fixed;
+            top: 0;
+            right: 0;
+            left: 0;
+            background: #1a1a2e;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px;
+            z-index: 1000;
+            font-size: 0.9rem;
+        }
+        .user-nav .user-info {
+            color: #aaa;
+        }
+        .user-nav .user-name {
+            color: #fff;
+            font-weight: 500;
+        }
+        .user-nav a {
+            color: #007AFF;
+            text-decoration: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .user-nav a:hover {
+            background: rgba(0,122,255,0.1);
+        }
+        .user-nav .logout-btn {
+            background: #dc3545;
+            color: white;
+        }
+        .user-nav .logout-btn:hover {
+            background: #c82333;
+        }
+        body {
+            padding-top: 50px;
+        }
+    </style>
 </head>
 <body>
+    <!-- Barra de usuario -->
+    <nav class="user-nav">
+        <span class="user-info">
+            Conectado como: <span class="user-name">{{ current_user.nombre }}</span>
+        </span>
+        <a href="{{ url_for('auth.mi_cuenta') }}">Mi Cuenta</a>
+        {% if current_user.es_admin() %}
+        <a href="{{ url_for('auth.admin_usuarios') }}">Admin</a>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}" class="logout-btn">Cerrar Sesion</a>
+    </nav>
+
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>🔍 LaLupa</h1>
-            <p class="subtitle">Buscador de Contratos Gubernamentales de México</p>
+            <h1>LaLupa</h1>
+            <p class="subtitle">Buscador de Contratos Gubernamentales de Mexico</p>
             <p class="db-update-info" id="dbUpdateInfo">
-                <span id="dbUpdateText">Cargando información...</span>
+                <span id="dbUpdateText">Cargando informacion...</span>
             </p>
         </header>
 

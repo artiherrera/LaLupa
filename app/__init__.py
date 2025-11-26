@@ -2,9 +2,10 @@
 import os
 import logging
 from pathlib import Path
-from flask import Flask, g, request
+from flask import Flask, g, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_login import LoginManager, current_user
 from config import config
 import time
 import json
@@ -14,6 +15,7 @@ import hashlib
 # Inicializar extensiones
 db = SQLAlchemy()
 migrate = Migrate()
+login_manager = LoginManager()
 
 def setup_logging(app):
     """Configurar el sistema de logging"""
@@ -162,14 +164,26 @@ def create_app(config_name=None):
         config_name = os.environ.get('FLASK_ENV', 'development')
     
     app = Flask(__name__)
-    
+
     # Cargar configuración
     app.config.from_object(config[config_name])
-    
+
     # Inicializar extensiones
     db.init_app(app)
     migrate.init_app(app, db)
-    
+
+    # Configurar Flask-Login
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Por favor inicia sesion para acceder a esta pagina.'
+    login_manager.login_message_category = 'warning'
+
+    # Cargar usuario por ID para Flask-Login
+    @login_manager.user_loader
+    def load_user(user_id):
+        from app.models import Usuario
+        return Usuario.query.get(int(user_id))
+
     # Configurar logging
     setup_logging(app)
     
@@ -194,7 +208,11 @@ def create_app(config_name=None):
     # Blueprint de API de contratos (paginación)
     from app.api.contracts import contracts_bp
     app.register_blueprint(contracts_bp, url_prefix='/api')
-    
+
+    # Blueprint de autenticacion
+    from app.auth import auth_bp
+    app.register_blueprint(auth_bp)
+
     # ========== MANEJADORES DE ERRORES ==========
     
     @app.errorhandler(404)

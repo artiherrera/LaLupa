@@ -1,7 +1,8 @@
 # app/api/search.py (versión con manejo de errores mejorado)
 
 from flask import Blueprint, request, jsonify
-from app.models import Contrato
+from flask_login import current_user
+from app.models import Contrato, HistorialBusqueda
 from app.services.search_service import SearchService
 from app.services.aggregation_service import AggregationService
 from app.services.filter_service import FilterService
@@ -12,6 +13,29 @@ import time
 
 search_bp = Blueprint('search', __name__)
 logger = logging.getLogger(__name__)
+
+
+def guardar_historial_busqueda(query_text, search_type, filters, total, monto_total, tiempo):
+    """Guarda la busqueda en el historial del usuario si esta autenticado"""
+    try:
+        if current_user.is_authenticated:
+            historial = HistorialBusqueda(
+                usuario_id=current_user.id,
+                query=query_text,
+                tipo_busqueda=search_type,
+                filtros=filters if filters else None,
+                resultados_count=total,
+                monto_total=monto_total,
+                tiempo_busqueda=tiempo
+            )
+            db.session.add(historial)
+            db.session.commit()
+    except Exception as e:
+        logger.error(f"Error guardando historial de busqueda: {str(e)}")
+        try:
+            db.session.rollback()
+        except:
+            pass
 
 @search_bp.route('/search', methods=['POST'])
 def search():
@@ -131,6 +155,17 @@ def search():
             'has_more': (page * per_page) < agregados['total_contratos'],
             'tiempo_busqueda': f"{elapsed_time:.2f}s"
         }
+
+        # Guardar en historial si el usuario esta autenticado (solo pagina 1)
+        if page == 1:
+            guardar_historial_busqueda(
+                query_text=query_text,
+                search_type=search_type,
+                filters=filters,
+                total=agregados['total_contratos'],
+                monto_total=agregados['monto_total'],
+                tiempo=elapsed_time
+            )
 
         return jsonify(resultado)
 

@@ -2,18 +2,54 @@
 
 """Servicio de búsqueda de contratos"""
 import re
-from sqlalchemy import or_, and_, not_
+import unicodedata
+from sqlalchemy import or_, and_, not_, func, String
 from app.utils.query_parser import parse_search_query
 
 class SearchService:
     """Servicio para búsquedas de contratos"""
 
+    @staticmethod
+    def _remove_accents(text):
+        """
+        Remueve acentos y diéresis de un texto para búsquedas insensibles a acentos.
+        Ejemplo: 'José' -> 'Jose', 'Müller' -> 'Muller'
+        """
+        if not text:
+            return text
+        # Normalizar a NFD (descompone caracteres acentuados)
+        nfd = unicodedata.normalize('NFD', text)
+        # Filtrar solo caracteres que no sean marcas diacríticas
+        return ''.join(char for char in nfd if unicodedata.category(char) != 'Mn')
+
+    @staticmethod
+    def _unaccent_compare(column, search_term):
+        """
+        Crea una comparación insensible a acentos usando translate de PostgreSQL.
+
+        translate(string, from, to) reemplaza cada caracter de 'from' con el
+        caracter correspondiente en 'to'.
+
+        Ejemplo: translate('José García', 'áéíóúÁÉÍÓÚñÑüÜ', 'aeiouAEIOUnNuU')
+                 -> 'Jose Garcia'
+        """
+        # Normalizar el término de búsqueda removiendo acentos
+        normalized_term = SearchService._remove_accents(search_term)
+
+        # Usar translate de PostgreSQL para normalizar la columna
+        # translate(column, from_chars, to_chars)
+        return func.translate(
+            column,
+            'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛãõÃÕñÑüÜ',
+            'aeiouAEIOUaeiouAEIOUaeiouAEIOUaoAOnNuU'
+        ).ilike(f'%{normalized_term}%')
+
     def validate_search_input(self, query_text, search_type):
         """Valida y sanitiza la entrada de búsqueda (ahora con soporte de operadores)"""
         query_text = query_text.strip()
 
-        if len(query_text) > 500:  # Aumentado para soportar queries complejas
-            raise ValueError('Término de búsqueda demasiado largo')
+        if len(query_text) > 2000:  # Permitir búsquedas muy largas con múltiples términos
+            raise ValueError('Término de búsqueda demasiado largo (máximo 2000 caracteres)')
 
         # Mantener operadores: comillas, -, OR, AND, paréntesis
         # Remover solo caracteres realmente peligrosos (SQL injection)
@@ -59,41 +95,59 @@ class SearchService:
         return query
 
     def _build_simple_query(self, query, query_text, search_type, Contrato):
-        """Construye query simple (sin operadores) - Backward compatible"""
+        """
+        Construye query simple (sin operadores)
+        Si hay múltiples palabras, busca que TODAS estén presentes (AND implícito)
+        Búsqueda insensible a acentos y diéresis
+        """
+        # Dividir el query_text en palabras individuales
+        terms = query_text.split()
+
         if search_type == 'descripcion':
-            query = query.filter(
-                Contrato.descripcion_contrato.ilike(f'%{query_text}%')
-            )
+            # Buscar que todas las palabras estén en descripción
+            for term in terms:
+                query = query.filter(
+                    self._unaccent_compare(Contrato.descripcion_contrato, term)
+                )
         elif search_type == 'titulo':
-            query = query.filter(or_(
-                Contrato.titulo_contrato.ilike(f'%{query_text}%'),
-                Contrato.titulo_expediente.ilike(f'%{query_text}%')
-            ))
+            # Buscar que todas las palabras estén en título o expediente
+            for term in terms:
+                query = query.filter(or_(
+                    self._unaccent_compare(Contrato.titulo_contrato, term),
+                    self._unaccent_compare(Contrato.titulo_expediente, term)
+                ))
         elif search_type == 'empresa':
-            query = query.filter(
-                Contrato.proveedor_contratista.ilike(f'%{query_text}%')
-            )
+            # Buscar que todas las palabras estén en el proveedor
+            for term in terms:
+                query = query.filter(
+                    self._unaccent_compare(Contrato.proveedor_contratista, term)
+                )
         elif search_type == 'rfc':
             query = query.filter(Contrato.rfc == query_text.upper())
         elif search_type == 'institucion':
-            query = query.filter(or_(
-                Contrato.institucion.ilike(f'%{query_text}%'),
-                Contrato.siglas_institucion.ilike(f'%{query_text}%')
-            ))
+            # Buscar que todas las palabras estén en institución o siglas
+            for term in terms:
+                query = query.filter(or_(
+                    self._unaccent_compare(Contrato.institucion, term),
+                    self._unaccent_compare(Contrato.siglas_institucion, term)
+                ))
         else:  # todo
-            query = query.filter(or_(
-                Contrato.descripcion_contrato.ilike(f'%{query_text}%'),
-                Contrato.titulo_contrato.ilike(f'%{query_text}%'),
-                Contrato.titulo_expediente.ilike(f'%{query_text}%'),
-                Contrato.proveedor_contratista.ilike(f'%{query_text}%'),
-                Contrato.institucion.ilike(f'%{query_text}%'),
-                Contrato.siglas_institucion.ilike(f'%{query_text}%')
-            ))
+            # Buscar que todas las palabras estén en cualquier campo
+            for term in terms:
+                query = query.filter(or_(
+                    self._unaccent_compare(Contrato.descripcion_contrato, term),
+                    self._unaccent_compare(Contrato.titulo_contrato, term),
+                    self._unaccent_compare(Contrato.titulo_expediente, term),
+                    self._unaccent_compare(Contrato.proveedor_contratista, term),
+                    self._unaccent_compare(Contrato.rfc, term),
+                    self._unaccent_compare(Contrato.institucion, term),
+                    self._unaccent_compare(Contrato.siglas_institucion, term)
+                ))
 
         return query
 
     def _build_advanced_query(self, query, parsed, search_type, Contrato):
-        """Construye query con operadores avanzados"""
+        """Construye query con operadores avanzados (insensible a acentos)"""
         conditions = []
 
         # Obtener las columnas según el tipo de búsqueda
@@ -101,19 +155,19 @@ class SearchService:
 
         # 1. Frases exactas (AND entre todas las frases)
         for phrase in parsed['exact_phrases']:
-            phrase_conditions = [col.ilike(f'%{phrase}%') for col in columns]
+            phrase_conditions = [self._unaccent_compare(col, phrase) for col in columns]
             conditions.append(or_(*phrase_conditions))
 
         # 2. Términos de inclusión (AND entre todos)
         for term in parsed['include_terms']:
-            term_conditions = [col.ilike(f'%{term}%') for col in columns]
+            term_conditions = [self._unaccent_compare(col, term) for col in columns]
             conditions.append(or_(*term_conditions))
 
         # 3. Grupos OR
         for or_group in parsed['or_groups']:
             or_conditions = []
             for term in or_group:
-                term_conditions = [col.ilike(f'%{term}%') for col in columns]
+                term_conditions = [self._unaccent_compare(col, term) for col in columns]
                 or_conditions.extend(term_conditions)
             if or_conditions:
                 conditions.append(or_(*or_conditions))
@@ -122,8 +176,8 @@ class SearchService:
         for term in parsed['exclude_terms']:
             exclude_conditions = []
             for col in columns:
-                # Usar ~ para negación o not_()
-                exclude_conditions.append(~col.ilike(f'%{term}%'))
+                # Negar la comparación insensible a acentos
+                exclude_conditions.append(~self._unaccent_compare(col, term))
             # Aplicar AND a todas las columnas (debe NO estar en ninguna)
             conditions.append(and_(*exclude_conditions))
 
@@ -151,6 +205,7 @@ class SearchService:
                 Contrato.titulo_contrato,
                 Contrato.titulo_expediente,
                 Contrato.proveedor_contratista,
+                Contrato.rfc,
                 Contrato.institucion,
                 Contrato.siglas_institucion
             ]
@@ -178,12 +233,13 @@ class SearchService:
                 Contrato.tipo_procedimiento.in_(filters['procedimientos'])
             )
         if filters.get('anios'):  # Plural
-            try:
-                # anio_fuente es INTEGER, convertir a enteros
-                anos_int = [int(a) for a in filters['anios']]
-                query = query.filter(Contrato.anio_fuente.in_(anos_int))
-            except (ValueError, TypeError):
-                pass
+            # anio_fuente puede ser VARCHAR o INTEGER dependiendo de la BD
+            # Manejar ambos casos: comparar como string
+            query = query.filter(
+                Contrato.anio_fuente.cast(String).in_(
+                    [str(a) for a in filters['anios']]
+                )
+            )
     
         
         if filters.get('estatus'):  # Singular

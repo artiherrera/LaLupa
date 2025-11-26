@@ -10,6 +10,15 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 10,
         'pool_recycle': 3600,
-        'pool_pre_ping': True
+        'pool_pre_ping': True,
+        'pool_timeout': 30,  # Timeout para obtener conexión del pool
+        'connect_args': {
+            'connect_timeout': 30,  # 30 segundos para conectar
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+            'options': '-c statement_timeout=300000'  # 5 minutos para queries largas
+        }
     }
 

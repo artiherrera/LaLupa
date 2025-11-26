@@ -48,7 +48,29 @@ def search():
 
         # 1. Obtener agregados COMPLETOS de TODOS los resultados
         aggregation_service = AggregationService()
-        agregados = aggregation_service.obtener_agregados_optimizado(base_query)
+        try:
+            agregados = aggregation_service.obtener_agregados_optimizado(base_query)
+        except Exception as agg_error:
+            logger.error(f"Error en agregados: {str(agg_error)}")
+            try:
+                db.session.rollback()
+            except:
+                pass
+            try:
+                db.session.remove()
+            except:
+                pass
+            # Si falla agregados, retornar valores por defecto
+            agregados = {
+                'total_contratos': 0,
+                'monto_total': 0,
+                'top_proveedores': [],
+                'top_instituciones': []
+            }
+            # Reconstruir la query después del error con una nueva sesión
+            base_query = search_service.build_search_query(query_text, search_type)
+            if filters:
+                base_query = search_service.apply_filters(base_query, filters)
 
         # 2. Aplicar ordenamiento según el parámetro
         if sort_order == 'monto_desc':
@@ -56,18 +78,42 @@ def search():
         elif sort_order == 'monto_asc':
             base_query = base_query.order_by(Contrato.importe.asc().nullsfirst())
         elif sort_order == 'fecha_desc':
-            base_query = base_query.order_by(Contrato.fecha_inicio.desc().nullslast())
+            base_query = base_query.order_by(Contrato.fecha_inicio_contrato.desc().nullslast())
         elif sort_order == 'fecha_asc':
-            base_query = base_query.order_by(Contrato.fecha_inicio.asc().nullsfirst())
+            base_query = base_query.order_by(Contrato.fecha_inicio_contrato.asc().nullsfirst())
         # 'relevancia' no tiene ordenamiento específico (orden natural de la query)
 
         # 3. Aplicar paginación
         offset = (page - 1) * per_page
-        contratos = base_query.offset(offset).limit(per_page).all()
+        try:
+            contratos = base_query.offset(offset).limit(per_page).all()
+        except Exception as query_error:
+            logger.error(f"Error en query de contratos: {str(query_error)}")
+            try:
+                db.session.rollback()
+            except:
+                pass
+            try:
+                db.session.remove()
+            except:
+                pass
+            raise  # Re-lanzar para que sea capturado por el except principal
 
-        # 3. Obtener filtros disponibles
+        # 4. Obtener filtros disponibles
         filter_service = FilterService()
-        filtros_disponibles = filter_service.obtener_filtros_disponibles(base_query)
+        try:
+            filtros_disponibles = filter_service.obtener_filtros_disponibles(base_query)
+        except Exception as filter_error:
+            logger.error(f"Error obteniendo filtros: {str(filter_error)}")
+            try:
+                db.session.rollback()
+            except:
+                pass
+            try:
+                db.session.remove()
+            except:
+                pass
+            filtros_disponibles = {}
 
         elapsed_time = time.time() - start_time
         logger.info(f"Búsqueda completada en {elapsed_time:.2f} segundos")

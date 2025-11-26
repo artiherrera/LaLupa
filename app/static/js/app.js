@@ -12,10 +12,19 @@ let availableFilters = {};
 let currentSortOrder = 'monto_desc';
 const perPage = 50;
 
+// Datos actuales mostrados en pantalla (para exportación PDF)
+let currentProviders = [];
+let currentInstitutions = [];
+let currentContracts = [];
+let currentSearchData = null;
+
 // ===========================
 // Inicialización
 // ===========================
 document.addEventListener('DOMContentLoaded', function() {
+    // Cargar información de la base de datos
+    loadDatabaseInfo();
+
     // Event listener para buscar con Enter
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -70,6 +79,9 @@ async function buscar(resetFilters = true) {
 
     if (resetFilters) {
         activeFilters = {};
+        // Resetear proveedores/instituciones ocultos en búsqueda nueva
+        hiddenProviders.clear();
+        hiddenInstitutions.clear();
     }
 
     currentPage = 1;
@@ -107,6 +119,9 @@ async function buscar(resetFilters = true) {
             mostrarError('No se encontraron resultados para tu búsqueda');
             return;
         }
+
+        // Guardar datos de búsqueda actuales para exportación PDF
+        currentSearchData = data;
 
         totalCount = data.total;
         totalPages = Math.ceil(totalCount / perPage);
@@ -303,8 +318,8 @@ function handleFilterChange(e) {
     // Actualizar vista de filtros activos
     updateActiveFiltersDisplay();
 
-    // Re-ejecutar búsqueda
-    buscar(false);
+    // Mostrar botón de aplicar filtros
+    showApplyFiltersButton();
 }
 
 function updateActiveFiltersDisplay() {
@@ -347,7 +362,7 @@ function removeFilter(type, value) {
     }
 
     updateActiveFiltersDisplay();
-    buscar(false);
+    showApplyFiltersButton();
 }
 
 function clearAllFilters() {
@@ -359,6 +374,39 @@ function clearAllFilters() {
     });
 
     updateActiveFiltersDisplay();
+    hideApplyFiltersButton();
+    buscar(false);
+}
+
+function showApplyFiltersButton() {
+    let applyBtn = document.getElementById('applyFiltersBtn');
+    if (!applyBtn) {
+        // Crear el botón si no existe
+        applyBtn = document.createElement('button');
+        applyBtn.id = 'applyFiltersBtn';
+        applyBtn.className = 'apply-filters-btn';
+        applyBtn.textContent = 'Aplicar filtros';
+        applyBtn.onclick = applyFilters;
+
+        const sidebar = document.querySelector('.filters-sidebar');
+        const header = sidebar.querySelector('.sidebar-header');
+        header.appendChild(applyBtn);
+    }
+    applyBtn.style.display = 'inline-block';
+}
+
+function hideApplyFiltersButton() {
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    if (applyBtn) {
+        applyBtn.style.display = 'none';
+    }
+}
+
+function applyFilters() {
+    hideApplyFiltersButton();
+    // Resetear proveedores/instituciones ocultos al aplicar nuevos filtros
+    hiddenProviders.clear();
+    hiddenInstitutions.clear();
     buscar(false);
 }
 
@@ -386,6 +434,7 @@ function renderAggregates(data, searchType) {
 // Variables globales para almacenar todos los datos
 let allProviders = [];
 let allInstitutions = [];
+let allContracts = []; // Guardar todos los contratos cargados
 let hiddenProviders = new Set();
 let hiddenInstitutions = new Set();
 
@@ -466,22 +515,26 @@ function renderInstitutions(instituciones) {
 function hideProvider(nombre) {
     hiddenProviders.add(nombre);
     renderProviders();
+    renderContracts([]); // Re-renderizar contratos con el filtro aplicado
 }
 
 function resetProviders() {
     hiddenProviders.clear();
     renderProviders();
+    renderContracts([]); // Re-renderizar contratos sin el filtro
 }
 
 // Funciones para ocultar/mostrar instituciones
 function hideInstitution(siglas) {
     hiddenInstitutions.add(siglas);
     renderInstitutions();
+    renderContracts([]); // Re-renderizar contratos con el filtro aplicado
 }
 
 function resetInstitutions() {
     hiddenInstitutions.clear();
     renderInstitutions();
+    renderContracts([]); // Re-renderizar contratos sin el filtro
 }
 
 async function showAllProviders() {
@@ -594,13 +647,25 @@ async function showAllInstitutions() {
 // Render de contratos como tarjetas
 // ===========================
 function renderContracts(contratos) {
+    // Guardar todos los contratos
+    if (contratos && contratos.length > 0) {
+        allContracts = contratos;
+    }
+
+    // Filtrar contratos según proveedores e instituciones ocultos
+    const visibleContracts = allContracts.filter(contrato => {
+        const proveedorOculto = hiddenProviders.has(contrato.proveedor);
+        const institucionOculta = hiddenInstitutions.has(contrato.siglas_institucion);
+        return !proveedorOculto && !institucionOculta;
+    });
+
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/D';
         const date = new Date(dateStr);
         return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
     };
 
-    const html = contratos.map(contrato => `
+    const html = visibleContracts.map(contrato => `
         <div class="contract-card-compact">
             <div class="contract-header">
                 <div class="contract-title-compact">
@@ -652,11 +717,16 @@ function renderContracts(contratos) {
 
     document.getElementById('contratosList').innerHTML = html;
 
-    // Actualizar contador
-    document.getElementById('resultsCount').innerHTML = `
-        Mostrando <strong>${((currentPage - 1) * perPage) + 1}-${Math.min(currentPage * perPage, totalCount)}</strong>
-        de <strong>${totalCount.toLocaleString()}</strong> contratos
-    `;
+    // Actualizar contador con contratos visibles
+    const numVisibleContracts = visibleContracts.length;
+    const hiddenCount = allContracts.length - numVisibleContracts;
+
+    let countText = `Mostrando <strong>${numVisibleContracts}</strong> contratos`;
+    if (hiddenCount > 0) {
+        countText += ` (${hiddenCount} ocultos por filtros)`;
+    }
+
+    document.getElementById('resultsCount').innerHTML = countText;
 }
 
 // ===========================
@@ -788,10 +858,48 @@ function escapeHtml(text) {
 }
 
 // ===========================
+// Cargar información de la base de datos
+// ===========================
+async function loadDatabaseInfo() {
+    try {
+        const response = await fetch('/api/stats');
+        if (!response.ok) {
+            throw new Error('Error al obtener estadísticas');
+        }
+
+        const stats = await response.json();
+        const dbUpdateText = document.getElementById('dbUpdateText');
+
+        // Validar que el año sea un número razonable (entre 2000 y año actual + 5)
+        const currentYear = new Date().getFullYear();
+        const validYear = stats.ultimo_anio &&
+                         !isNaN(stats.ultimo_anio) &&
+                         stats.ultimo_anio >= 2000 &&
+                         stats.ultimo_anio <= currentYear + 5;
+
+        // Construir mensaje
+        let message = `${stats.total_contratos.toLocaleString()} contratos registrados`;
+
+        if (validYear) {
+            message += ` | Año más reciente: ${stats.ultimo_anio}`;
+        }
+
+        if (stats.ultima_actualizacion) {
+            message = `Última actualización: ${stats.ultima_actualizacion} | ` + message;
+        }
+
+        dbUpdateText.textContent = message;
+    } catch (error) {
+        console.error('Error al cargar información de la BD:', error);
+        document.getElementById('dbUpdateText').textContent = 'Información de BD no disponible';
+    }
+}
+
+// ===========================
 // Exportar a PDF
 // ===========================
 async function exportToPDF() {
-    if (!lastQuery) {
+    if (!lastQuery || !currentSearchData) {
         mostrarError('Por favor realiza una búsqueda primero');
         return;
     }
@@ -801,98 +909,107 @@ async function exportToPDF() {
     btn.textContent = 'Generando PDF...';
 
     try {
-        // Obtener datos completos
-        const [providersResponse, institutionsResponse, contractsResponse] = await Promise.all([
-            fetch('/api/all-providers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: lastQuery,
-                    search_type: lastSearchType,
-                    filters: activeFilters
-                })
-            }),
-            fetch('/api/all-institutions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: lastQuery,
-                    search_type: lastSearchType,
-                    filters: activeFilters
-                })
-            }),
-            fetch('/api/all-contracts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: lastQuery,
-                    search_type: lastSearchType,
-                    filters: activeFilters,
-                    sort: currentSortOrder
-                })
-            })
-        ]);
+        // Usar datos actuales en pantalla (respetando filtros y elementos ocultos)
 
-        const providers = await providersResponse.json();
-        const institutions = await institutionsResponse.json();
-        const contracts = await contractsResponse.json();
+        // Obtener proveedores visibles (excluyendo los que el usuario ocultó)
+        const visibleProviders = allProviders.filter(prov => !hiddenProviders.has(prov.nombre));
+
+        // Obtener instituciones visibles (excluyendo las que el usuario ocultó)
+        const visibleInstitutions = allInstitutions.filter(inst => !hiddenInstitutions.has(inst.siglas));
+
+        // Obtener todos los contratos con los filtros aplicados
+        const contractsResponse = await fetch('/api/all-contracts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: lastQuery,
+                search_type: lastSearchType,
+                filters: activeFilters,
+                sort: currentSortOrder
+            })
+        });
+
+        const contractsData = await contractsResponse.json();
+
+        // Filtrar contratos: excluir los de proveedores/instituciones ocultos
+        let filteredContracts = contractsData.contratos || [];
+
+        if (hiddenProviders.size > 0) {
+            filteredContracts = filteredContracts.filter(contrato =>
+                !hiddenProviders.has(contrato.proveedor)
+            );
+        }
+
+        if (hiddenInstitutions.size > 0) {
+            filteredContracts = filteredContracts.filter(contrato =>
+                !hiddenInstitutions.has(contrato.siglas_institucion)
+            );
+        }
+
+        const providers = { top_proveedores: visibleProviders };
+        const institutions = { top_instituciones: visibleInstitutions };
+        const contracts = { contratos: filteredContracts, total_returned: filteredContracts.length };
+
+        // Calcular totales filtrados
+        const totalContractosFiltered = filteredContracts.length;
+        const montoTotalFiltered = filteredContracts.reduce((sum, c) => sum + (c.importe || 0), 0);
 
         // Crear PDF usando jsPDF
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('p', 'mm', 'a4');
 
-        let yPos = 20;
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
         const maxWidth = pageWidth - (margin * 2);
+        const bottomMargin = 20; // Margen inferior para pie de página
+        let currentY = margin;
 
         // Portada
         doc.setFontSize(24);
         doc.setFont(undefined, 'bold');
-        doc.text('LaLupa', pageWidth / 2, yPos, { align: 'center' });
+        doc.text('LaLupa', pageWidth / 2, currentY, { align: 'center' });
 
-        yPos += 10;
+        currentY += 10;
         doc.setFontSize(16);
-        doc.text('Reporte de Contratos Gubernamentales', pageWidth / 2, yPos, { align: 'center' });
+        doc.text('Reporte de Contratos Gubernamentales', pageWidth / 2, currentY, { align: 'center' });
 
-        yPos += 15;
+        currentY += 15;
         doc.setFontSize(12);
         doc.setFont(undefined, 'normal');
-        doc.text(`Búsqueda: ${lastQuery}`, margin, yPos);
-        yPos += 7;
-        doc.text(`Tipo: ${lastSearchType}`, margin, yPos);
-        yPos += 7;
+        doc.text(`Búsqueda: ${lastQuery}`, margin, currentY);
+        currentY += 7;
+        doc.text(`Tipo: ${lastSearchType}`, margin, currentY);
+        currentY += 7;
         doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX', {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
-        })}`, margin, yPos);
+        })}`, margin, currentY);
 
-        yPos += 15;
+        currentY += 15;
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
-        doc.text('Resumen', margin, yPos);
+        doc.text('Resumen', margin, currentY);
 
-        yPos += 8;
+        currentY += 8;
         doc.setFontSize(11);
         doc.setFont(undefined, 'normal');
-        doc.text(`Total de contratos: ${totalCount.toLocaleString()}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Monto total: ${formatMoney(providers.top_proveedores.reduce((sum, p) => sum + p.monto_total, 0))}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Proveedores: ${providers.top_proveedores.length}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Instituciones: ${institutions.top_instituciones.length}`, margin, yPos);
+        doc.text(`Total de contratos: ${totalContractosFiltered.toLocaleString()}`, margin, currentY);
+        currentY += 6;
+        doc.text(`Monto total: ${formatMoney(montoTotalFiltered)}`, margin, currentY);
+        currentY += 6;
+        doc.text(`Proveedores: ${providers.top_proveedores.length}`, margin, currentY);
+        currentY += 6;
+        doc.text(`Instituciones: ${institutions.top_instituciones.length}`, margin, currentY);
 
-        // Nueva página para proveedores
-        doc.addPage();
-        yPos = 20;
+        // Proveedores (fluye continuo, sin nueva página forzada)
+        currentY += 15;
 
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text('Top Proveedores', margin, yPos);
-        yPos += 10;
+        doc.text('Top Proveedores', margin, currentY);
+        currentY += 10;
 
         // Tabla de proveedores
         const providerData = providers.top_proveedores.slice(0, 50).map(p => [
@@ -903,7 +1020,7 @@ async function exportToPDF() {
         ]);
 
         doc.autoTable({
-            startY: yPos,
+            startY: currentY,
             head: [['Proveedor', 'RFC', 'Contratos', 'Monto Total']],
             body: providerData,
             theme: 'grid',
@@ -915,17 +1032,17 @@ async function exportToPDF() {
                 2: { cellWidth: 25, halign: 'center' },
                 3: { cellWidth: 35, halign: 'right' }
             },
-            margin: { left: margin, right: margin }
+            margin: { left: margin, right: margin, bottom: bottomMargin }
         });
 
-        // Nueva página para instituciones
-        doc.addPage();
-        yPos = 20;
+        // Continuar después de la tabla
+        currentY = doc.lastAutoTable.finalY + 15;
 
+        // Instituciones (fluye continuo)
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text('Top Instituciones', margin, yPos);
-        yPos += 10;
+        doc.text('Top Instituciones', margin, currentY);
+        currentY += 10;
 
         // Tabla de instituciones
         const institutionData = institutions.top_instituciones.slice(0, 50).map(i => [
@@ -936,7 +1053,7 @@ async function exportToPDF() {
         ]);
 
         doc.autoTable({
-            startY: yPos,
+            startY: currentY,
             head: [['Siglas', 'Institución', 'Contratos', 'Monto Total']],
             body: institutionData,
             theme: 'grid',
@@ -948,47 +1065,41 @@ async function exportToPDF() {
                 2: { cellWidth: 25, halign: 'center' },
                 3: { cellWidth: 35, halign: 'right' }
             },
-            margin: { left: margin, right: margin }
+            margin: { left: margin, right: margin, bottom: bottomMargin }
         });
 
-        // Nueva página para contratos - DETALLE COMPLETO
-        doc.addPage();
-        yPos = 20;
+        // Continuar después de la tabla
+        currentY = doc.lastAutoTable.finalY + 15;
 
+        // Contratos - DETALLE COMPLETO (fluye continuo)
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text('Detalle Completo de Contratos', margin, yPos);
-        yPos += 5;
+        doc.text('Detalle Completo de Contratos', margin, currentY);
+        currentY += 5;
 
         doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
         if (contracts.limited) {
-            doc.text('(Mostrando los primeros 1,000 contratos)', margin, yPos);
+            doc.text('(Mostrando los primeros 1,000 contratos)', margin, currentY);
         } else {
-            doc.text(`(Total: ${contracts.total_returned} contratos)`, margin, yPos);
+            doc.text(`(Total: ${contracts.total_returned} contratos)`, margin, currentY);
         }
-        yPos += 12;
+        currentY += 12;
 
         // Renderizar cada contrato con TODOS sus detalles
         contracts.contratos.forEach((contrato, index) => {
-            // Verificar si necesitamos una nueva página
-            if (yPos > pageHeight - 60) {
-                doc.addPage();
-                yPos = 20;
-            }
-
             // Número de contrato
             doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
-            doc.text(`Contrato #${index + 1}`, margin, yPos);
-            yPos += 6;
+            doc.text(`Contrato #${index + 1}`, margin, currentY);
+            currentY += 6;
 
             // Crear tabla con toda la información del contrato
             const contratoData = [];
 
             // Información básica
             if (contrato.codigo_contrato) {
-                contratoData.push(['Código de Contrato', contrato.codigo_contrato]);
+                contratoData.push(['Código', contrato.codigo_contrato]);
             }
             if (contrato.titulo) {
                 contratoData.push(['Título', contrato.titulo]);
@@ -996,30 +1107,18 @@ async function exportToPDF() {
             if (contrato.descripcion) {
                 contratoData.push(['Descripción', contrato.descripcion]);
             }
-
-            // Proveedor
             if (contrato.proveedor) {
                 contratoData.push(['Proveedor', contrato.proveedor]);
             }
             if (contrato.rfc) {
                 contratoData.push(['RFC', contrato.rfc]);
             }
-
-            // Institución
             if (contrato.institucion) {
                 contratoData.push(['Institución', contrato.institucion]);
             }
             if (contrato.siglas_institucion) {
-                contratoData.push(['Siglas Institución', contrato.siglas_institucion]);
+                contratoData.push(['Siglas', contrato.siglas_institucion]);
             }
-            if (contrato.unidad_compradora) {
-                contratoData.push(['Unidad Compradora', contrato.unidad_compradora]);
-            }
-            if (contrato.responsable) {
-                contratoData.push(['Responsable', contrato.responsable]);
-            }
-
-            // Montos y fechas
             if (contrato.importe != null) {
                 contratoData.push(['Importe', formatMoney(contrato.importe)]);
             }
@@ -1029,93 +1128,70 @@ async function exportToPDF() {
             if (contrato.fecha_fin) {
                 contratoData.push(['Fecha Fin', new Date(contrato.fecha_fin).toLocaleDateString('es-MX')]);
             }
-
-            // Procedimiento
             if (contrato.tipo_contratacion) {
                 contratoData.push(['Tipo Contratación', contrato.tipo_contratacion]);
             }
             if (contrato.tipo_procedimiento) {
                 contratoData.push(['Tipo Procedimiento', contrato.tipo_procedimiento]);
             }
-            if (contrato.forma_procedimiento) {
-                contratoData.push(['Forma Procedimiento', contrato.forma_procedimiento]);
-            }
-            if (contrato.caracter) {
-                contratoData.push(['Carácter', contrato.caracter]);
-            }
-
-            // Estado y clasificación
             if (contrato.estatus) {
                 contratoData.push(['Estatus', contrato.estatus]);
             }
-            if (contrato.clave_cucop) {
-                contratoData.push(['Clave CUCOP', contrato.clave_cucop]);
-            }
-            if (contrato.titulo_cucop) {
-                contratoData.push(['Título CUCOP', contrato.titulo_cucop]);
-            }
-
-            // Ubicación
-            if (contrato.entidad_federativa) {
-                contratoData.push(['Entidad Federativa', contrato.entidad_federativa]);
-            }
-            if (contrato.municipio) {
-                contratoData.push(['Municipio', contrato.municipio]);
-            }
-
-            // Fuente y año
             if (contrato.anio_fuente) {
                 contratoData.push(['Año', contrato.anio_fuente.toString()]);
             }
-            if (contrato.fuente) {
-                contratoData.push(['Fuente', contrato.fuente]);
-            }
-
-            // Enlace al anuncio (IMPORTANTE)
+            // Guardar la URL para agregarla como enlace después
+            let contratoURL = null;
             if (contrato.direccion_anuncio) {
-                contratoData.push(['URL del Contrato', contrato.direccion_anuncio]);
+                contratoURL = contrato.direccion_anuncio;
+                contratoData.push(['URL', contrato.direccion_anuncio]);
             }
 
-            // Información adicional
-            if (contrato.numero_expediente) {
-                contratoData.push(['No. Expediente', contrato.numero_expediente]);
-            }
-            if (contrato.referencia) {
-                contratoData.push(['Referencia', contrato.referencia]);
-            }
-            if (contrato.observaciones) {
-                contratoData.push(['Observaciones', contrato.observaciones]);
-            }
-
-            // Generar tabla con toda la información
+            // Generar tabla con toda la información - SIN LÍMITES DE CELDA
             doc.autoTable({
-                startY: yPos,
+                startY: currentY,
                 body: contratoData,
-                theme: 'grid',
+                theme: 'plain',
                 styles: {
                     fontSize: 8,
                     cellPadding: 2,
                     overflow: 'linebreak',
-                    cellWidth: 'wrap'
+                    valign: 'top'
                 },
                 columnStyles: {
                     0: {
-                        cellWidth: 45,
+                        cellWidth: 35,
                         fontStyle: 'bold',
-                        fillColor: [240, 240, 240]
+                        fillColor: [245, 245, 245]
                     },
                     1: {
-                        cellWidth: 130,
-                        overflow: 'linebreak'
+                        cellWidth: 'auto',  // Usa todo el ancho disponible
+                        overflow: 'linebreak'  // Permite múltiples líneas
                     }
                 },
-                margin: { left: margin, right: margin },
+                margin: { left: margin, right: margin, bottom: bottomMargin },
+                // Esta función se llama cuando autoTable necesita crear nueva página
                 didDrawPage: function(data) {
-                    yPos = data.cursor.y;
+                    currentY = data.cursor.y;
+                },
+                // Agregar enlace clickeable a la URL
+                didDrawCell: function(data) {
+                    if (contratoURL && data.column.index === 1 && data.row.index === contratoData.length - 1) {
+                        const url = data.cell.text[0];
+                        if (url && url.startsWith('http')) {
+                            doc.link(
+                                data.cell.x,
+                                data.cell.y,
+                                data.cell.width,
+                                data.cell.height,
+                                { url: url }
+                            );
+                        }
+                    }
                 }
             });
 
-            yPos = doc.lastAutoTable.finalY + 8;
+            currentY = doc.lastAutoTable.finalY + 8;
         });
 
         // Pie de página en todas las páginas

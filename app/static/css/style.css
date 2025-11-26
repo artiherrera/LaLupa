@@ -108,6 +108,17 @@ header h1 {
     letter-spacing: 0.01em;
 }
 
+.db-update-info {
+    margin-top: 16px;
+    padding: 10px 20px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--text-tertiary);
+    display: inline-block;
+}
+
 /* Search Container - Clean Card */
 .search-container {
     background: var(--surface);
@@ -1373,6 +1384,30 @@ header h1 {
 .clear-all-btn:hover {
     background: rgba(0, 122, 255, 0.1);
     transform: translateX(-2px);
+}
+
+.apply-filters-btn {
+    background: var(--primary);
+    border: none;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s var(--ease);
+    margin-left: 8px;
+    display: none;
+}
+
+.apply-filters-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+.apply-filters-btn:active {
+    transform: translateY(0);
 }
 
 /* Filtros activos en sidebar */

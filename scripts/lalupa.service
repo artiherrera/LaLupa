@@ -1,0 +1,14 @@
+[Unit]
+Description=LaLupa Gunicorn Service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/lalupa
+Environment="PATH=/var/www/lalupa/venv/bin"
+EnvironmentFile=/var/www/lalupa/.env
+ExecStart=/var/www/lalupa/venv/bin/gunicorn --workers 3 --bind unix:lalupa.sock -m 007 wsgi:app
+
+[Install]
+WantedBy=multi-user.target

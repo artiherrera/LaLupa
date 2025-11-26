@@ -200,6 +200,42 @@ def mi_cuenta():
     )
 
 
+@auth_bp.route('/cambiar-password', methods=['POST'])
+@login_required
+def cambiar_password():
+    """Cambiar contraseña del usuario actual"""
+    if not validar_sesion():
+        flash('Tu sesion ha expirado', 'warning')
+        return redirect(url_for('auth.login'))
+
+    password_actual = request.form.get('password_actual', '')
+    password_nueva = request.form.get('password_nueva', '')
+    password_confirmar = request.form.get('password_confirmar', '')
+
+    if not password_actual or not password_nueva or not password_confirmar:
+        flash('Todos los campos son requeridos', 'error')
+        return redirect(url_for('auth.mi_cuenta'))
+
+    if not current_user.check_password(password_actual):
+        flash('La contraseña actual es incorrecta', 'error')
+        return redirect(url_for('auth.mi_cuenta'))
+
+    if password_nueva != password_confirmar:
+        flash('Las contraseñas nuevas no coinciden', 'error')
+        return redirect(url_for('auth.mi_cuenta'))
+
+    if len(password_nueva) < 6:
+        flash('La contraseña debe tener al menos 6 caracteres', 'error')
+        return redirect(url_for('auth.mi_cuenta'))
+
+    current_user.set_password(password_nueva)
+    db.session.commit()
+
+    registrar_log(current_user.id, 'cambio_password', exitoso=True)
+    flash('Contraseña actualizada correctamente', 'success')
+    return redirect(url_for('auth.mi_cuenta'))
+
+
 @auth_bp.route('/admin/usuarios')
 @login_required
 def admin_usuarios():

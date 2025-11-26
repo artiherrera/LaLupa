@@ -285,6 +285,64 @@ def toggle_usuario(id):
     return redirect(url_for('auth.admin_usuarios'))
 
 
+@auth_bp.route('/admin/usuarios/<int:id>/historial')
+@login_required
+def ver_historial_usuario(id):
+    """Ver historial de busquedas de un usuario (solo admin)"""
+    if not validar_sesion():
+        return redirect(url_for('auth.login'))
+
+    if not current_user.es_admin():
+        flash('No tienes permisos', 'error')
+        return redirect(url_for('main.index'))
+
+    usuario = Usuario.query.get_or_404(id)
+
+    # Obtener historial de busquedas del usuario
+    historial = HistorialBusqueda.query.filter_by(
+        usuario_id=usuario.id
+    ).order_by(HistorialBusqueda.fecha.desc()).limit(100).all()
+
+    # Obtener log de accesos
+    accesos = LogAcceso.query.filter_by(
+        usuario_id=usuario.id
+    ).order_by(LogAcceso.fecha.desc()).limit(50).all()
+
+    return render_template(
+        'auth/historial_usuario.html',
+        usuario=usuario,
+        historial=historial,
+        accesos=accesos
+    )
+
+
+@auth_bp.route('/admin/historial-general')
+@login_required
+def historial_general():
+    """Ver historial de busquedas de todos los usuarios (solo admin)"""
+    if not validar_sesion():
+        return redirect(url_for('auth.login'))
+
+    if not current_user.es_admin():
+        flash('No tienes permisos', 'error')
+        return redirect(url_for('main.index'))
+
+    # Obtener historial de todos los usuarios con join
+    from sqlalchemy import desc
+    historial = db.session.query(
+        HistorialBusqueda, Usuario
+    ).join(
+        Usuario, HistorialBusqueda.usuario_id == Usuario.id
+    ).order_by(
+        desc(HistorialBusqueda.fecha)
+    ).limit(200).all()
+
+    return render_template(
+        'auth/historial_general.html',
+        historial=historial
+    )
+
+
 # Middleware para validar sesion en cada request
 @auth_bp.before_app_request
 def verificar_sesion_activa():

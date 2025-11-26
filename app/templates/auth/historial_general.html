@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial General de Busquedas - LaLupa</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .page-header h1 {
+            font-size: 1.8rem;
+            color: #1a1a2e;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #1a1a2e;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #666;
+            position: sticky;
+            top: 0;
+        }
+        td {
+            font-size: 0.9rem;
+            color: #333;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .user-cell {
+            display: flex;
+            flex-direction: column;
+        }
+        .user-name {
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        .user-email {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .search-query {
+            max-width: 350px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .amount {
+            font-weight: 600;
+            color: #28a745;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        .view-link {
+            color: #007AFF;
+            text-decoration: none;
+        }
+        .view-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1>Historial General de Busquedas</h1>
+            <div class="header-actions">
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary">Ir a Buscar</a>
+                <a href="{{ url_for('auth.admin_usuarios') }}" class="btn btn-secondary">Usuarios</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-label">Total Busquedas</span>
+                    <span class="stat-value">{{ historial|length }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Mostrando</span>
+                    <span class="stat-value">Ultimas 200</span>
+                </div>
+            </div>
+
+            <h2>Todas las Busquedas</h2>
+            {% if historial %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Busqueda</th>
+                            <th>Tipo</th>
+                            <th>Resultados</th>
+                            <th>Monto Total</th>
+                            <th>Tiempo</th>
+                            <th>Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for busqueda, usuario in historial %}
+                        <tr>
+                            <td>{{ busqueda.fecha.strftime('%d/%m/%Y %H:%M') if busqueda.fecha else 'N/A' }}</td>
+                            <td class="user-cell">
+                                <span class="user-name">{{ usuario.nombre }}</span>
+                                <span class="user-email">{{ usuario.email }}</span>
+                            </td>
+                            <td class="search-query" title="{{ busqueda.termino_busqueda }}">
+                                {{ busqueda.termino_busqueda[:60] }}{% if busqueda.termino_busqueda|length > 60 %}...{% endif %}
+                            </td>
+                            <td><span class="badge badge-info">{{ busqueda.tipo_busqueda }}</span></td>
+                            <td>{{ '{:,}'.format(busqueda.resultados_count or 0) }}</td>
+                            <td class="amount">${{ '{:,.2f}'.format(busqueda.monto_total or 0) }}</td>
+                            <td>{{ '%.2f' % (busqueda.tiempo_busqueda or 0) }}s</td>
+                            <td>
+                                <a href="{{ url_for('auth.ver_historial_usuario', id=usuario.id) }}" class="view-link">
+                                    Ver usuario
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No hay busquedas registradas.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

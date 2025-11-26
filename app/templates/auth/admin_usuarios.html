@@ -149,6 +149,7 @@
         <div class="admin-header">
             <h1>Administracion de Usuarios</h1>
             <div class="header-actions">
+                <a href="{{ url_for('auth.historial_general') }}" class="btn btn-primary">Ver Historial General</a>
                 <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Ir a Buscar</a>
                 <a href="{{ url_for('auth.mi_cuenta') }}" class="btn btn-secondary">Mi Cuenta</a>
                 <a href="{{ url_for('auth.crear_usuario') }}" class="btn btn-success">+ Nuevo Usuario</a>
@@ -201,6 +202,10 @@
                             <td>{{ usuario.fecha_creacion.strftime('%d/%m/%Y') if usuario.fecha_creacion else 'N/A' }}</td>
                             <td>{{ usuario.ultimo_acceso.strftime('%d/%m/%Y %H:%M') if usuario.ultimo_acceso else 'Nunca' }}</td>
                             <td class="actions">
+                                <a href="{{ url_for('auth.ver_historial_usuario', id=usuario.id) }}"
+                                   class="btn btn-sm btn-secondary">
+                                    Historial
+                                </a>
                                 {% if usuario.id != current_user.id %}
                                 <a href="{{ url_for('auth.toggle_usuario', id=usuario.id) }}"
                                    class="btn btn-sm {% if usuario.activo %}btn-danger{% else %}btn-success{% endif %}"
@@ -208,7 +213,7 @@
                                     {{ 'Desactivar' if usuario.activo else 'Activar' }}
                                 </a>
                                 {% else %}
-                                <span style="color: #999; font-size: 0.8rem;">(Tu cuenta)</span>
+                                <span style="color: #999; font-size: 0.8rem;">(Tu)</span>
                                 {% endif %}
                             </td>
                         </tr>

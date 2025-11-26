@@ -66,30 +66,8 @@ def crear_sesion(usuario):
 
 
 def validar_sesion():
-    """Valida que la sesion actual sea valida"""
-    if not current_user.is_authenticated:
-        return False
-
-    token = session.get('token_sesion')
-    if not token:
-        return False
-
-    sesion = SesionActiva.query.filter_by(
-        usuario_id=current_user.id,
-        token_sesion=token
-    ).first()
-
-    if not sesion:
-        # La sesion fue invalidada (expulsado)
-        logout_user()
-        session.pop('token_sesion', None)
-        return False
-
-    # Actualizar ultima actividad
-    sesion.actualizar_actividad()
-    db.session.commit()
-
-    return True
+    """Validacion simplificada - solo verifica que este autenticado"""
+    return current_user.is_authenticated
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -379,30 +357,7 @@ def historial_general():
     )
 
 
-# Middleware para validar sesion en cada request
-@auth_bp.before_app_request
-def verificar_sesion_activa():
-    """Verifica que la sesion sea valida en cada request"""
-    if current_user.is_authenticated:
-        # Rutas que no requieren validacion de sesion
-        if request.endpoint and request.endpoint.startswith('static'):
-            return
-
-        token = session.get('token_sesion')
-        if token:
-            sesion = SesionActiva.query.filter_by(
-                usuario_id=current_user.id,
-                token_sesion=token
-            ).first()
-
-            if not sesion:
-                # Sesion invalida - fue expulsado
-                logout_user()
-                session.pop('token_sesion', None)
-                if request.endpoint != 'auth.login':
-                    flash('Tu sesion fue cerrada porque iniciaste sesion en otro dispositivo', 'warning')
-                    return redirect(url_for('auth.login'))
-            else:
-                # Actualizar ultima actividad
-                sesion.actualizar_actividad()
-                db.session.commit()
+# Middleware desactivado - usar solo Flask-Login basico
+# @auth_bp.before_app_request
+# def verificar_sesion_activa():
+#     pass

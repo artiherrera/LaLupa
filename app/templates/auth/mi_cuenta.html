@@ -261,8 +261,8 @@
                         <tr>
                             <td>{{ busqueda.fecha.strftime('%d/%m/%Y %H:%M') if busqueda.fecha else 'N/A' }}</td>
                             <td class="search-query">
-                                <a href="/?q={{ busqueda.query | urlencode }}&type={{ busqueda.tipo_busqueda }}" class="search-link" title="{{ busqueda.query }}">
-                                    {{ busqueda.query[:50] }}{% if busqueda.query|length > 50 %}...{% endif %}
+                                <a href="/?q={{ busqueda.termino_busqueda | urlencode }}&type={{ busqueda.tipo_busqueda }}" class="search-link" title="{{ busqueda.termino_busqueda }}">
+                                    {{ busqueda.termino_busqueda[:50] }}{% if busqueda.termino_busqueda|length > 50 %}...{% endif %}
                                 </a>
                             </td>
                             <td><span class="badge badge-info">{{ busqueda.tipo_busqueda }}</span></td>

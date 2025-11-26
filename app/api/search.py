@@ -21,7 +21,7 @@ def guardar_historial_busqueda(query_text, search_type, filters, total, monto_to
         if current_user.is_authenticated:
             historial = HistorialBusqueda(
                 usuario_id=current_user.id,
-                query=query_text,
+                termino_busqueda=query_text,
                 tipo_busqueda=search_type,
                 filtros=filters if filters else None,
                 resultados_count=total,

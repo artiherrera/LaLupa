@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(git log:*)",
+      "Bash(/dev/null)",
+      "Bash(chmod:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(python scripts/setup_auth.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

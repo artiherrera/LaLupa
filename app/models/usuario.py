@@ -88,7 +88,7 @@ class HistorialBusqueda(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('contratos.usuarios.id'), nullable=False, index=True)
-    query = db.Column(db.Text, nullable=False)
+    termino_busqueda = db.Column('query', db.Text, nullable=False)  # 'query' es el nombre en BD
     tipo_busqueda = db.Column(db.String(50))
     filtros = db.Column(db.JSON)  # Guardar filtros como JSON
     resultados_count = db.Column(db.Integer)
@@ -99,7 +99,7 @@ class HistorialBusqueda(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'query': self.query,
+            'query': self.termino_busqueda,
             'tipo_busqueda': self.tipo_busqueda,
             'filtros': self.filtros,
             'resultados_count': self.resultados_count,
@@ -109,7 +109,7 @@ class HistorialBusqueda(db.Model):
         }
 
     def __repr__(self):
-        return f'<HistorialBusqueda {self.query[:30]}>'
+        return f'<HistorialBusqueda {self.termino_busqueda[:30]}>'
 
 
 class LogAcceso(db.Model):

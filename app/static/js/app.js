@@ -660,9 +660,25 @@ function renderContracts(contratos) {
     });
 
     const formatDate = (dateStr) => {
-        if (!dateStr) return 'N/D';
+        if (!dateStr) return null;
         const date = new Date(dateStr);
         return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+    const formatContractDate = (contrato) => {
+        const fechaInicio = formatDate(contrato.fecha_inicio);
+        const fechaFin = formatDate(contrato.fecha_fin);
+
+        if (fechaInicio && fechaFin) {
+            return `${fechaInicio} - ${fechaFin}`;
+        } else if (fechaInicio) {
+            return fechaInicio;
+        } else if (fechaFin) {
+            return fechaFin;
+        } else if (contrato.anio) {
+            return contrato.anio;
+        }
+        return 'N/D';
     };
 
     const html = visibleContracts.map(contrato => `
@@ -690,8 +706,8 @@ function renderContracts(contratos) {
                     <div class="meta-value">${escapeHtml(contrato.tipo_procedimiento || 'N/D')}</div>
                 </div>
                 <div class="contract-meta-item">
-                    <div class="meta-label">Período</div>
-                    <div class="meta-value">${formatDate(contrato.fecha_inicio)} - ${formatDate(contrato.fecha_fin)}</div>
+                    <div class="meta-label">Fecha</div>
+                    <div class="meta-value">${formatContractDate(contrato)}</div>
                 </div>
             </div>
 

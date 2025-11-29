@@ -45,6 +45,35 @@ logger.info(f"Conectando a la base de datos con usuario: {DATABASE_URL.split(':/
 Session = sessionmaker(bind=engine)
 
 
+def verificar_indices_fts():
+    """Verifica y crea los índices GIN para Full Text Search si no existen"""
+    indices_sql = """
+    -- Índices GIN para Full Text Search (búsquedas rápidas)
+    CREATE INDEX IF NOT EXISTS idx_contratos_titulo_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(titulo_contrato, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_descripcion_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(descripcion_contrato, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_proveedor_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(proveedor_contratista, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
+    """
+
+    try:
+        db_session = Session()
+        db_session.execute(text(indices_sql))
+        db_session.commit()
+        db_session.close()
+        logger.info("✅ Índices FTS verificados/creados")
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudieron crear índices FTS: {e}")
+        return False
+
+
 # Decorador para requerir autenticación
 def login_required(f):
     @wraps(f)
@@ -954,6 +983,9 @@ def upload_file():
 
         # Limpiar archivo temporal
         os.remove(temp_path)
+
+        # Verificar/crear índices FTS para búsquedas rápidas
+        verificar_indices_fts()
 
         # Preparar advertencias
         advertencias_lista = cleaner.advertencias[:10]  # Solo primeras 10

@@ -39,12 +39,18 @@ def create_indexes():
     CREATE INDEX IF NOT EXISTS idx_contratos_tipo_procedimiento
         ON contratos.contratos(tipo_procedimiento);
     
-    -- Índices para búsqueda de texto
+    -- Índices GIN para Full Text Search (búsquedas rápidas)
     CREATE INDEX IF NOT EXISTS idx_contratos_titulo_gin
-        ON contratos.contratos USING gin(to_tsvector('spanish', titulo_contrato));
-    
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(titulo_contrato, '')));
+
     CREATE INDEX IF NOT EXISTS idx_contratos_descripcion_gin
-        ON contratos.contratos USING gin(to_tsvector('spanish', descripcion_contrato));
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(descripcion_contrato, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_proveedor_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(proveedor_contratista, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
     """
     
     try:

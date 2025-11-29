@@ -45,10 +45,39 @@ logger.info(f"Conectando a la base de datos con usuario: {DATABASE_URL.split(':/
 Session = sessionmaker(bind=engine)
 
 
-def verificar_indices_fts():
-    """Verifica y crea los índices GIN para Full Text Search si no existen"""
+def verificar_indices():
+    """Verifica y crea todos los índices necesarios para búsquedas y agregaciones"""
     indices_sql = """
-    -- Índices GIN para Full Text Search (búsquedas rápidas)
+    -- =============================================
+    -- ÍNDICES B-TREE PARA FILTROS Y ORDENAMIENTO
+    -- =============================================
+    CREATE INDEX IF NOT EXISTS idx_contratos_importe
+        ON contratos.contratos(importe DESC NULLS LAST);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_proveedor
+        ON contratos.contratos(proveedor_contratista);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_rfc
+        ON contratos.contratos(rfc);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_siglas_inst
+        ON contratos.contratos(siglas_institucion);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_anio
+        ON contratos.contratos(anio_fuente);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_tipo_contratacion
+        ON contratos.contratos(tipo_contratacion);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_tipo_procedimiento
+        ON contratos.contratos(tipo_procedimiento);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_estatus
+        ON contratos.contratos(estatus_contrato);
+
+    -- =============================================
+    -- ÍNDICES GIN PARA FULL TEXT SEARCH
+    -- =============================================
     CREATE INDEX IF NOT EXISTS idx_contratos_titulo_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(titulo_contrato, '')));
 
@@ -61,15 +90,14 @@ def verificar_indices_fts():
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
 
-    -- Índices compuestos para agregaciones (GROUP BY + SUM)
+    -- =============================================
+    -- ÍNDICES COMPUESTOS PARA AGREGACIONES (GROUP BY + SUM)
+    -- =============================================
     CREATE INDEX IF NOT EXISTS idx_contratos_proveedor_importe
         ON contratos.contratos(proveedor_contratista, rfc, importe);
 
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_importe
         ON contratos.contratos(siglas_institucion, institucion, importe);
-
-    CREATE INDEX IF NOT EXISTS idx_contratos_estatus
-        ON contratos.contratos(estatus_contrato);
     """
 
     try:
@@ -77,7 +105,7 @@ def verificar_indices_fts():
         db_session.execute(text(indices_sql))
         db_session.commit()
         db_session.close()
-        logger.info("✅ Índices FTS y agregación verificados/creados")
+        logger.info("✅ Todos los índices verificados/creados")
         return True
     except Exception as e:
         logger.warning(f"⚠️ No se pudieron crear índices: {e}")
@@ -995,7 +1023,7 @@ def upload_file():
         os.remove(temp_path)
 
         # Verificar/crear índices FTS para búsquedas rápidas
-        verificar_indices_fts()
+        verificar_indices()
 
         # Preparar advertencias
         advertencias_lista = cleaner.advertencias[:10]  # Solo primeras 10

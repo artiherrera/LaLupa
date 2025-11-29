@@ -244,22 +244,21 @@ def get_all_providers():
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
-        # Obtener TODOS los proveedores (sin límite)
+        # Obtener TODOS los proveedores (sin límite) - usando with_entities()
         from app.models import Contrato
-        subquery = base_query.subquery()
 
-        proveedores_query = db.session.query(
-            subquery.c.proveedor_contratista.label('nombre'),
-            subquery.c.rfc.label('rfc'),
-            func.count('*').label('num_contratos'),
-            func.sum(subquery.c.importe).label('monto_total')
+        proveedores_query = base_query.with_entities(
+            Contrato.proveedor_contratista.label('nombre'),
+            Contrato.rfc.label('rfc'),
+            func.count(Contrato.codigo_contrato).label('num_contratos'),
+            func.sum(Contrato.importe).label('monto_total')
         ).filter(
-            subquery.c.proveedor_contratista.isnot(None)
+            Contrato.proveedor_contratista.isnot(None)
         ).group_by(
-            subquery.c.proveedor_contratista,
-            subquery.c.rfc
+            Contrato.proveedor_contratista,
+            Contrato.rfc
         ).order_by(
-            func.sum(subquery.c.importe).desc().nullslast()
+            func.sum(Contrato.importe).desc().nullslast()
         ).all()  # SIN LÍMITE
 
         proveedores = []
@@ -305,22 +304,21 @@ def get_all_institutions():
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
-        # Obtener TODAS las instituciones (sin límite)
+        # Obtener TODAS las instituciones (sin límite) - usando with_entities()
         from app.models import Contrato
-        subquery = base_query.subquery()
 
-        instituciones_query = db.session.query(
-            subquery.c.institucion.label('nombre'),
-            subquery.c.siglas_institucion.label('siglas'),
-            func.count('*').label('num_contratos'),
-            func.sum(subquery.c.importe).label('monto_total')
+        instituciones_query = base_query.with_entities(
+            Contrato.institucion.label('nombre'),
+            Contrato.siglas_institucion.label('siglas'),
+            func.count(Contrato.codigo_contrato).label('num_contratos'),
+            func.sum(Contrato.importe).label('monto_total')
         ).filter(
-            subquery.c.siglas_institucion.isnot(None)
+            Contrato.siglas_institucion.isnot(None)
         ).group_by(
-            subquery.c.institucion,
-            subquery.c.siglas_institucion
+            Contrato.institucion,
+            Contrato.siglas_institucion
         ).order_by(
-            func.sum(subquery.c.importe).desc().nullslast()
+            func.sum(Contrato.importe).desc().nullslast()
         ).all()  # SIN LÍMITE
 
         instituciones = []

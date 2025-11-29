@@ -51,6 +51,16 @@ def create_indexes():
 
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
+
+    -- Índices compuestos para agregaciones (GROUP BY + SUM)
+    CREATE INDEX IF NOT EXISTS idx_contratos_proveedor_importe
+        ON contratos.contratos(proveedor_contratista, rfc, importe);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_institucion_importe
+        ON contratos.contratos(siglas_institucion, institucion, importe);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_estatus
+        ON contratos.contratos(estatus_contrato);
     """
     
     try:

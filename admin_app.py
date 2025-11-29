@@ -60,6 +60,16 @@ def verificar_indices_fts():
 
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
+
+    -- Índices compuestos para agregaciones (GROUP BY + SUM)
+    CREATE INDEX IF NOT EXISTS idx_contratos_proveedor_importe
+        ON contratos.contratos(proveedor_contratista, rfc, importe);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_institucion_importe
+        ON contratos.contratos(siglas_institucion, institucion, importe);
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_estatus
+        ON contratos.contratos(estatus_contrato);
     """
 
     try:
@@ -67,10 +77,10 @@ def verificar_indices_fts():
         db_session.execute(text(indices_sql))
         db_session.commit()
         db_session.close()
-        logger.info("✅ Índices FTS verificados/creados")
+        logger.info("✅ Índices FTS y agregación verificados/creados")
         return True
     except Exception as e:
-        logger.warning(f"⚠️ No se pudieron crear índices FTS: {e}")
+        logger.warning(f"⚠️ No se pudieron crear índices: {e}")
         return False
 
 

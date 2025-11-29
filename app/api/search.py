@@ -71,6 +71,7 @@ def search():
         logger.info(f"Búsqueda: {query_text}, tipo: {search_type}, filtros: {filters}, página: {page}, orden: {sort_order}")
 
         # 1. Obtener agregados COMPLETOS de TODOS los resultados
+        # IMPORTANTE: with_entities() modifica la query, así que necesitamos reconstruirla después
         aggregation_service = AggregationService()
         try:
             agregados = aggregation_service.obtener_agregados_optimizado(base_query)
@@ -80,10 +81,6 @@ def search():
                 db.session.rollback()
             except:
                 pass
-            try:
-                db.session.remove()
-            except:
-                pass
             # Si falla agregados, retornar valores por defecto
             agregados = {
                 'total_contratos': 0,
@@ -91,10 +88,11 @@ def search():
                 'top_proveedores': [],
                 'top_instituciones': []
             }
-            # Reconstruir la query después del error con una nueva sesión
-            base_query = search_service.build_search_query(query_text, search_type)
-            if filters:
-                base_query = search_service.apply_filters(base_query, filters)
+
+        # IMPORTANTE: Reconstruir la query base porque with_entities() la modificó
+        base_query = search_service.build_search_query(query_text, search_type)
+        if filters:
+            base_query = search_service.apply_filters(base_query, filters)
 
         # 2. Aplicar ordenamiento según el parámetro
         if sort_order == 'monto_desc':
@@ -124,17 +122,18 @@ def search():
             raise  # Re-lanzar para que sea capturado por el except principal
 
         # 4. Obtener filtros disponibles
+        # Reconstruir query base sin ordenamiento ni paginación para los filtros
+        filter_query = search_service.build_search_query(query_text, search_type)
+        if filters:
+            filter_query = search_service.apply_filters(filter_query, filters)
+
         filter_service = FilterService()
         try:
-            filtros_disponibles = filter_service.obtener_filtros_disponibles(base_query)
+            filtros_disponibles = filter_service.obtener_filtros_disponibles(filter_query)
         except Exception as filter_error:
             logger.error(f"Error obteniendo filtros: {str(filter_error)}")
             try:
                 db.session.rollback()
-            except:
-                pass
-            try:
-                db.session.remove()
             except:
                 pass
             filtros_disponibles = {}

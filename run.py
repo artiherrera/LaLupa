@@ -17,8 +17,11 @@ app = create_app(config_name)
 def create_indexes():
     """Crea los índices necesarios para optimizar las búsquedas"""
     indices_sql = """
+    -- Extensión unaccent para búsquedas sin acentos
+    CREATE EXTENSION IF NOT EXISTS unaccent;
+
     -- Índices para mejorar performance
-    CREATE INDEX IF NOT EXISTS idx_contratos_importe 
+    CREATE INDEX IF NOT EXISTS idx_contratos_importe
         ON contratos.contratos(importe DESC NULLS LAST);
     
     CREATE INDEX IF NOT EXISTS idx_contratos_proveedor 

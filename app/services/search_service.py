@@ -36,6 +36,32 @@ class SearchService:
             func.plainto_tsquery('spanish', search_term)
         )
 
+    @staticmethod
+    def _exact_phrase_match(column, phrase):
+        """
+        Búsqueda de frase EXACTA usando ILIKE con unaccent().
+        Insensible a mayúsculas/minúsculas y acentos.
+        """
+        # unaccent() quita acentos, ILIKE ignora mayúsculas
+        return func.unaccent(func.coalesce(column, '')).ilike(
+            func.unaccent(f'%{phrase}%')
+        )
+
+    @staticmethod
+    def _exact_phrase_match_columns(columns, phrase):
+        """
+        Búsqueda de frase exacta en múltiples columnas (OR entre columnas).
+        """
+        if len(columns) == 1:
+            return SearchService._exact_phrase_match(columns[0], phrase)
+
+        # Buscar en cualquiera de las columnas
+        or_conditions = []
+        for col in columns:
+            or_conditions.append(SearchService._exact_phrase_match(col, phrase))
+
+        return or_(*or_conditions)
+
     def validate_search_input(self, query_text, search_type):
         """Valida y sanitiza la entrada de búsqueda (ahora con soporte de operadores)"""
         query_text = query_text.strip()
@@ -104,26 +130,40 @@ class SearchService:
         return query
 
     def _build_advanced_query(self, query, parsed, search_type, Contrato):
-        """Construye query con operadores avanzados usando Full Text Search"""
+        """
+        Construye query con operadores avanzados.
+        - Frases exactas ("..."): ILIKE con unaccent para búsqueda exacta
+        - Términos normales: FTS para búsqueda rápida
+        - OR: Combina condiciones con OR
+        - Exclusión (-): NOT en la condición
+        """
         conditions = []
 
         # Obtener las columnas según el tipo de búsqueda
         columns = self._get_search_columns(search_type, Contrato)
 
         # 1. Frases exactas (AND entre todas las frases)
+        # Usa ILIKE con unaccent() para búsqueda exacta insensible a acentos
         for phrase in parsed['exact_phrases']:
-            # Para frases exactas, usar phraseto_tsquery
-            conditions.append(self._fts_phrase_match(columns, phrase))
+            conditions.append(self._exact_phrase_match_columns(columns, phrase))
 
         # 2. Términos de inclusión (AND entre todos)
+        # Usa FTS para búsqueda rápida
         for term in parsed['include_terms']:
             conditions.append(self._fts_match_columns(columns, term))
 
-        # 3. Grupos OR
+        # 3. Grupos OR - pueden contener frases exactas o términos normales
         for or_group in parsed['or_groups']:
             or_conditions = []
             for term in or_group:
-                or_conditions.append(self._fts_match_columns(columns, term))
+                # Detectar si es una frase exacta (viene con comillas en el original)
+                # El parser ya removió las comillas, pero podemos detectar espacios
+                if ' ' in term:
+                    # Frase con espacios = búsqueda exacta con ILIKE
+                    or_conditions.append(self._exact_phrase_match_columns(columns, term))
+                else:
+                    # Término simple = FTS
+                    or_conditions.append(self._fts_match_columns(columns, term))
             if or_conditions:
                 conditions.append(or_(*or_conditions))
 
@@ -137,23 +177,6 @@ class SearchService:
             query = query.filter(and_(*conditions))
 
         return query
-
-    @staticmethod
-    def _fts_phrase_match(columns, phrase):
-        """Búsqueda de frase exacta usando phraseto_tsquery"""
-        if len(columns) == 1:
-            return func.to_tsvector('spanish', func.coalesce(columns[0], '')).op('@@')(
-                func.phraseto_tsquery('spanish', phrase)
-            )
-
-        # Concatenar columnas
-        concatenated = func.coalesce(columns[0], '')
-        for col in columns[1:]:
-            concatenated = concatenated.op('||')(' ').op('||')(func.coalesce(col, ''))
-
-        return func.to_tsvector('spanish', concatenated).op('@@')(
-            func.phraseto_tsquery('spanish', phrase)
-        )
 
     def _get_search_columns(self, search_type, Contrato):
         """Retorna las columnas a buscar según el tipo"""

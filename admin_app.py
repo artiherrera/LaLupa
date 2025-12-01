@@ -49,6 +49,11 @@ def verificar_indices():
     """Verifica y crea todos los índices necesarios para búsquedas y agregaciones"""
     indices_sql = """
     -- =============================================
+    -- EXTENSIÓN UNACCENT PARA BÚSQUEDAS SIN ACENTOS
+    -- =============================================
+    CREATE EXTENSION IF NOT EXISTS unaccent;
+
+    -- =============================================
     -- ÍNDICES B-TREE PARA FILTROS Y ORDENAMIENTO
     -- =============================================
     CREATE INDEX IF NOT EXISTS idx_contratos_importe

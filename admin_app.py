@@ -47,11 +47,29 @@ Session = sessionmaker(bind=engine)
 
 def verificar_indices():
     """Verifica y crea todos los índices necesarios para búsquedas y agregaciones"""
+
+    # Primero intentar crear la extensión unaccent (requiere permisos especiales)
+    try:
+        db_session = Session()
+        db_session.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+        db_session.commit()
+        db_session.close()
+        logger.info("✅ Extensión unaccent verificada/creada")
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo crear extensión unaccent (puede requerir superusuario): {e}")
+        try:
+            db_session.rollback()
+            db_session.close()
+        except:
+            pass
+
+    # Luego crear los índices (esto no requiere permisos especiales)
     indices_sql = """
     -- =============================================
-    -- EXTENSIÓN UNACCENT PARA BÚSQUEDAS SIN ACENTOS
+    -- AGREGAR COLUMNA created_at SI NO EXISTE
     -- =============================================
-    CREATE EXTENSION IF NOT EXISTS unaccent;
+    ALTER TABLE contratos.contratos
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
 
     -- =============================================
     -- ÍNDICES B-TREE PARA FILTROS Y ORDENAMIENTO
@@ -779,8 +797,9 @@ class DataCleaner:
         self.advertencias.append(f"Código generado automáticamente: {codigo}")
         return codigo
 
-    def limpiar_dataframe(self, df):
-        """Limpia todo el DataFrame"""
+    def limpiar_dataframe(self, df, anio_archivo=None):
+        """Limpia todo el DataFrame. anio_archivo es el año extraído del nombre del archivo."""
+        self.anio_archivo = anio_archivo
         logger.info(f"Iniciando limpieza de {len(df)} registros")
         logger.info(f"Columnas en CSV: {list(df.columns)[:10]}...")  # Mostrar primeras 10
 
@@ -834,9 +853,33 @@ class DataCleaner:
         if 'fecha_fin_contrato' in df.columns:
             df['fecha_fin_contrato'] = df['fecha_fin_contrato'].apply(self.limpiar_fecha)
 
-        # Inferir año si no existe
-        if 'anio_fuente' not in df.columns or df['anio_fuente'].isna().all():
+        # Determinar el año de la fuente
+        # Prioridad: 1) Año del nombre del archivo, 2) Columna válida, 3) Inferir de fecha
+        def es_anio_valido(val):
+            """Verifica si el valor es un año válido (4 dígitos entre 2000-2099)"""
+            if pd.isna(val):
+                return False
+            try:
+                num = int(val)
+                return 2000 <= num <= 2099
+            except (ValueError, TypeError):
+                return False
+
+        if self.anio_archivo:
+            # Si hay año del nombre del archivo, usarlo para TODOS los registros
+            logger.info(f"Usando año del nombre del archivo: {self.anio_archivo}")
+            df['anio_fuente'] = self.anio_archivo
+        elif 'anio_fuente' not in df.columns or df['anio_fuente'].isna().all():
+            # No hay columna o está vacía, inferir de fecha
             if 'fecha_inicio_contrato' in df.columns:
+                logger.info("Infiriendo año de fecha_inicio_contrato")
+                df['anio_fuente'] = df['fecha_inicio_contrato'].apply(
+                    lambda x: str(x.year) if pd.notna(x) else None
+                )
+        elif not df['anio_fuente'].apply(es_anio_valido).any():
+            # Columna existe pero no tiene años válidos (ej: "Plataforma Integral CompraNet")
+            if 'fecha_inicio_contrato' in df.columns:
+                logger.warning("Los valores de anio_fuente no son años válidos, infiriendo de fecha_inicio_contrato")
                 df['anio_fuente'] = df['fecha_inicio_contrato'].apply(
                     lambda x: str(x.year) if pd.notna(x) else None
                 )
@@ -907,11 +950,10 @@ def get_stats():
         result = db_session.execute(text("SELECT MAX(anio_fuente) FROM contratos.contratos"))
         ultimo_anio = result.scalar()
 
-        # Obtener fecha de última actualización (contratos más recientes agregados)
+        # Obtener fecha de última carga de datos
         result = db_session.execute(text("""
-            SELECT MAX(fecha_inicio_contrato)
+            SELECT MAX(created_at)
             FROM contratos.contratos
-            WHERE fecha_inicio_contrato IS NOT NULL
         """))
         ultima_actualizacion = result.scalar()
 
@@ -920,7 +962,7 @@ def get_stats():
         # Formatear fecha para mostrar
         fecha_formateada = None
         if ultima_actualizacion:
-            fecha_formateada = ultima_actualizacion.strftime('%d/%m/%Y')
+            fecha_formateada = ultima_actualizacion.strftime('%d/%m/%Y %H:%M')
 
         return jsonify({
             'total_contratos': total_contratos or 0,
@@ -969,9 +1011,17 @@ def upload_file():
 
         logger.info(f"Archivo leído: {len(df)} filas, {len(df.columns)} columnas")
 
+        # Extraer año del nombre del archivo (ej: contratos_comprasmx_2025.csv -> 2025)
+        anio_archivo = None
+        import re
+        match = re.search(r'(\d{4})', file.filename)
+        if match:
+            anio_archivo = match.group(1)
+            logger.info(f"Año extraído del nombre del archivo: {anio_archivo}")
+
         # Limpiar datos
         cleaner = DataCleaner()
-        df_limpio = cleaner.limpiar_dataframe(df)
+        df_limpio = cleaner.limpiar_dataframe(df, anio_archivo=anio_archivo)
 
         # Insertar en base de datos
         db_session = Session()
@@ -988,6 +1038,9 @@ def upload_file():
             try:
                 # Filtrar solo las columnas disponibles
                 datos = {col: row[col] for col in columnas_disponibles if col in row.index and pd.notna(row[col])}
+
+                # Agregar timestamp de carga
+                datos['created_at'] = datetime.now()
 
                 if not datos.get('codigo_contrato'):
                     logger.error("Registro sin codigo_contrato, saltando")
@@ -1020,6 +1073,11 @@ def upload_file():
             except Exception as e:
                 logger.error(f"Error al insertar registro: {e}")
                 registros_con_errores += 1
+                # IMPORTANTE: Hacer rollback para limpiar el estado de la transacción
+                try:
+                    db_session.rollback()
+                except:
+                    pass
 
         db_session.commit()
         db_session.close()

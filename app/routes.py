@@ -95,15 +95,15 @@ def _calculate_stats():
     """
     from app.models.contrato import Contrato
 
-    # Obtener última actualización (fecha más reciente de inicio de contrato)
+    # Obtener última actualización (fecha de última carga de datos)
     ultima_actualizacion = db.session.query(
-        func.max(Contrato.fecha_inicio_contrato)
+        func.max(Contrato.created_at)
     ).scalar()
 
     # Formatear fecha para mostrar
     fecha_formateada = None
     if ultima_actualizacion:
-        fecha_formateada = ultima_actualizacion.strftime('%d/%m/%Y')
+        fecha_formateada = ultima_actualizacion.strftime('%d/%m/%Y %H:%M')
 
     # Obtener año más reciente (solo valores numéricos)
     # anio_fuente es VARCHAR, filtrar usando regex para solo años de 4 dígitos

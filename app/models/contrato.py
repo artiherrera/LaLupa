@@ -26,9 +26,12 @@ class Contrato(db.Model):
     estatus_contrato = db.Column(db.String)
     direccion_anuncio = db.Column(db.Text)
     anio_fuente = db.Column(db.Integer)
-    
+
     # ⭐ NUEVO: Agregar columna de año de fundación
     anio_fundacion_empresa = db.Column(db.Integer)
+
+    # Fecha de carga del registro (para saber cuándo se subió)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def get_importe_numerico(self):
         """Obtiene el importe como número flotante"""

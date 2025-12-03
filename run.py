@@ -16,9 +16,21 @@ app = create_app(config_name)
 
 def create_indexes():
     """Crea los índices necesarios para optimizar las búsquedas"""
+
+    # Primero intentar crear la extensión unaccent (requiere permisos especiales)
+    try:
+        db.session.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+        db.session.commit()
+        print("✅ Extensión unaccent verificada/creada")
+    except Exception as e:
+        print(f"⚠️ No se pudo crear extensión unaccent: {e}")
+        db.session.rollback()
+
+    # Luego crear los índices
     indices_sql = """
-    -- Extensión unaccent para búsquedas sin acentos
-    CREATE EXTENSION IF NOT EXISTS unaccent;
+    -- Agregar columna created_at si no existe
+    ALTER TABLE contratos.contratos
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
 
     -- Índices para mejorar performance
     CREATE INDEX IF NOT EXISTS idx_contratos_importe

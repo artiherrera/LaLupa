@@ -6,7 +6,8 @@ let totalPages = 1;
 let totalCount = 0;
 let isLoadingMore = false;
 let lastQuery = '';
-let lastSearchType = 'todo';
+let lastSearchType = 'todo';  // Mantener para backward compatibility
+let lastSearchFields = ['descripcion', 'titulo', 'empresa', 'institucion'];  // Nuevos campos multi-select
 let activeFilters = {};
 let availableFilters = {};
 let currentSortOrder = 'monto_desc';
@@ -32,26 +33,79 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Event listeners para los tabs
-    document.querySelectorAll('.search-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            // Quitar active de todos los tabs
-            document.querySelectorAll('.search-tab').forEach(t => {
-                t.classList.remove('active');
-            });
+    // Event listeners para los chips de categoría (multi-select)
+    document.querySelectorAll('.category-chip').forEach(chip => {
+        chip.addEventListener('click', function() {
+            // Toggle el estado activo del chip
+            this.classList.toggle('active');
 
-            // Activar este tab
-            this.classList.add('active');
-
-            // Cambiar placeholder del input
-            const placeholder = this.dataset.placeholder;
-            document.getElementById('searchInput').placeholder = placeholder;
+            // Actualizar placeholder según categorías seleccionadas
+            updateSearchPlaceholder();
 
             // Enfocar el input
             document.getElementById('searchInput').focus();
         });
     });
+
+    // Soporte legacy para tabs (si existen)
+    document.querySelectorAll('.search-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.search-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            this.classList.add('active');
+            const placeholder = this.dataset.placeholder;
+            document.getElementById('searchInput').placeholder = placeholder;
+            document.getElementById('searchInput').focus();
+        });
+    });
 });
+
+// ===========================
+// Funciones para categorías multi-select
+// ===========================
+function getSelectedCategories() {
+    const selected = [];
+    document.querySelectorAll('.category-chip.active').forEach(chip => {
+        selected.push(chip.dataset.field);
+    });
+    return selected.length > 0 ? selected : ['descripcion', 'titulo', 'empresa', 'institucion']; // Default si ninguno seleccionado
+}
+
+function toggleAllCategories() {
+    const chips = document.querySelectorAll('.category-chip');
+    const allActive = Array.from(chips).every(chip => chip.classList.contains('active'));
+
+    chips.forEach(chip => {
+        if (allActive) {
+            chip.classList.remove('active');
+        } else {
+            chip.classList.add('active');
+        }
+    });
+
+    updateSearchPlaceholder();
+}
+
+function updateSearchPlaceholder() {
+    const selected = getSelectedCategories();
+    const labels = {
+        'descripcion': 'descripción',
+        'titulo': 'título',
+        'empresa': 'proveedor',
+        'institucion': 'institución',
+        'rfc': 'RFC'
+    };
+
+    if (selected.length === 0 || selected.length === 5) {
+        document.getElementById('searchInput').placeholder = 'Buscar en todo: medicamentos, construcción, servicios...';
+    } else if (selected.length === 1) {
+        document.getElementById('searchInput').placeholder = `Buscar en ${labels[selected[0]]}...`;
+    } else {
+        const names = selected.map(s => labels[s]).join(', ');
+        document.getElementById('searchInput').placeholder = `Buscar en: ${names}...`;
+    }
+}
 
 // ===========================
 // Toggle Search Help
@@ -71,10 +125,16 @@ async function buscar(resetFilters = true) {
         return;
     }
 
-    // Obtener el tipo de búsqueda del tab activo
-    const activeTab = document.querySelector('.search-tab.active');
-    const searchType = activeTab ? activeTab.dataset.type : 'todo';
+    // Obtener las categorías seleccionadas (multi-select)
+    const searchFields = getSelectedCategories();
     lastQuery = query;
+    lastSearchFields = searchFields;
+
+    // Backward compatibility: convertir a search_type si es necesario
+    let searchType = 'todo';
+    if (searchFields.length === 1) {
+        searchType = searchFields[0];
+    }
     lastSearchType = searchType;
 
     if (resetFilters) {
@@ -99,6 +159,7 @@ async function buscar(resetFilters = true) {
             body: JSON.stringify({
                 query: query,
                 search_type: searchType,
+                search_fields: searchFields,  // Nuevo: array de campos
                 filters: activeFilters,
                 sort: currentSortOrder,
                 page: 1,

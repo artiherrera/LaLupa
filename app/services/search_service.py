@@ -90,10 +90,15 @@ class SearchService:
 
         return query_text, search_type
     
-    def build_search_query(self, query_text, search_type):
+    def build_search_query(self, query_text, search_type, search_fields=None):
         """
         Construye la consulta según el tipo de búsqueda.
         Ahora soporta operadores: "frase exacta", -excluir, OR, AND
+
+        Args:
+            query_text: Texto de búsqueda
+            search_type: Tipo de búsqueda (backward compatible)
+            search_fields: Lista de campos a buscar (nuevo multi-select)
         """
         from app.models import Contrato
 
@@ -105,23 +110,23 @@ class SearchService:
         # Construir condiciones según el tipo de búsqueda
         if parsed['has_operators']:
             # Query con operadores avanzados
-            query = self._build_advanced_query(query, parsed, search_type, Contrato)
+            query = self._build_advanced_query(query, parsed, search_type, Contrato, search_fields)
         else:
             # Query simple (backward compatible)
-            query = self._build_simple_query(query, query_text, search_type, Contrato)
+            query = self._build_simple_query(query, query_text, search_type, Contrato, search_fields)
 
         return query
 
-    def _build_simple_query(self, query, query_text, search_type, Contrato):
+    def _build_simple_query(self, query, query_text, search_type, Contrato, search_fields=None):
         """
         Construye query simple usando Full Text Search de PostgreSQL.
         Usa índices GIN para búsquedas rápidas en millones de registros.
         """
         # Obtener columnas según tipo de búsqueda
-        columns = self._get_search_columns(search_type, Contrato)
+        columns = self._get_search_columns(search_type, Contrato, search_fields)
 
-        if search_type == 'rfc':
-            # RFC usa búsqueda exacta
+        # RFC usa búsqueda exacta
+        if search_type == 'rfc' or (search_fields and search_fields == ['rfc']):
             query = query.filter(Contrato.rfc == query_text.upper())
         else:
             # FTS busca todas las palabras automáticamente (AND implícito)
@@ -129,7 +134,7 @@ class SearchService:
 
         return query
 
-    def _build_advanced_query(self, query, parsed, search_type, Contrato):
+    def _build_advanced_query(self, query, parsed, search_type, Contrato, search_fields=None):
         """
         Construye query con operadores avanzados.
         - Frases exactas ("..."): ILIKE con unaccent para búsqueda exacta
@@ -140,7 +145,7 @@ class SearchService:
         conditions = []
 
         # Obtener las columnas según el tipo de búsqueda
-        columns = self._get_search_columns(search_type, Contrato)
+        columns = self._get_search_columns(search_type, Contrato, search_fields)
 
         # 1. Frases exactas (AND entre todas las frases)
         # Usa ILIKE con unaccent() para búsqueda exacta insensible a acentos
@@ -178,18 +183,44 @@ class SearchService:
 
         return query
 
-    def _get_search_columns(self, search_type, Contrato):
-        """Retorna las columnas a buscar según el tipo"""
+    def _get_search_columns(self, search_type, Contrato, search_fields=None):
+        """
+        Retorna las columnas a buscar.
+
+        Args:
+            search_type: Tipo de búsqueda (backward compatible)
+            Contrato: Modelo de contrato
+            search_fields: Lista de campos a buscar (nuevo multi-select)
+        """
+        # Mapeo de campos a columnas
+        field_mapping = {
+            'descripcion': [Contrato.descripcion_contrato],
+            'titulo': [Contrato.titulo_contrato, Contrato.titulo_expediente],
+            'empresa': [Contrato.proveedor_contratista],
+            'rfc': [Contrato.rfc],
+            'institucion': [Contrato.institucion, Contrato.siglas_institucion]
+        }
+
+        # Si se proporcionan search_fields (nuevo multi-select)
+        if search_fields and isinstance(search_fields, list):
+            columns = []
+            for field in search_fields:
+                if field in field_mapping:
+                    columns.extend(field_mapping[field])
+            if columns:
+                return columns
+
+        # Backward compatible: usar search_type
         if search_type == 'descripcion':
-            return [Contrato.descripcion_contrato]
+            return field_mapping['descripcion']
         elif search_type == 'titulo':
-            return [Contrato.titulo_contrato, Contrato.titulo_expediente]
+            return field_mapping['titulo']
         elif search_type == 'empresa':
-            return [Contrato.proveedor_contratista]
+            return field_mapping['empresa']
         elif search_type == 'rfc':
-            return [Contrato.rfc]
+            return field_mapping['rfc']
         elif search_type == 'institucion':
-            return [Contrato.institucion, Contrato.siglas_institucion]
+            return field_mapping['institucion']
         else:  # todo
             return [
                 Contrato.descripcion_contrato,

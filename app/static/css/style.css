@@ -135,6 +135,103 @@ header h1 {
 }
 
 /* Search Tabs - Modern Design */
+/* ===========================
+   CATEGORÍAS DE BÚSQUEDA (Multi-select chips)
+   =========================== */
+
+.search-categories {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.categories-label {
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.category-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.category-chip {
+    padding: 10px 16px;
+    border: 2px solid var(--glass-border);
+    background: var(--glass);
+    color: var(--text-secondary);
+    border-radius: 25px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+.category-chip .chip-icon {
+    font-size: 14px;
+    transition: transform 0.25s var(--ease);
+}
+
+.category-chip:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+}
+
+/* Estado activo (seleccionado) */
+.category-chip.active {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+}
+
+.category-chip.active .chip-icon {
+    transform: scale(1.1);
+}
+
+.category-chip.active:hover {
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Estado inactivo con hover */
+.category-chip:not(.active):hover {
+    background: rgba(0, 122, 255, 0.08);
+    color: var(--primary);
+}
+
+/* Botón toggle all */
+.toggle-all-btn {
+    padding: 8px 12px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+}
+
+.toggle-all-btn:hover {
+    background: var(--glass-hover);
+    color: var(--primary);
+    transform: rotate(180deg);
+}
+
+/* Mantener compatibilidad con search-tabs antiguos */
 .search-tabs {
     display: flex;
     gap: 8px;

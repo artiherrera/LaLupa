@@ -51,6 +51,9 @@ def search():
             data.get('search_type', 'todo')
         )
 
+        # Obtener campos de búsqueda (nuevo multi-select)
+        search_fields = data.get('search_fields', None)
+
         filters = data.get('filters', {})
 
         # Obtener parámetros de paginación y ordenamiento
@@ -61,14 +64,14 @@ def search():
         if not query_text:
             return jsonify({'error': 'Por favor ingresa un término de búsqueda'}), 400
 
-        # Construir la consulta base
-        base_query = search_service.build_search_query(query_text, search_type)
+        # Construir la consulta base (con soporte para multi-select)
+        base_query = search_service.build_search_query(query_text, search_type, search_fields)
 
         # Aplicar filtros
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
-        logger.info(f"Búsqueda: {query_text}, tipo: {search_type}, filtros: {filters}, página: {page}, orden: {sort_order}")
+        logger.info(f"Búsqueda: {query_text}, campos: {search_fields or search_type}, filtros: {filters}, página: {page}, orden: {sort_order}")
 
         # 1. Obtener agregados COMPLETOS de TODOS los resultados
         # IMPORTANTE: with_entities() modifica la query, así que necesitamos reconstruirla después
@@ -90,7 +93,7 @@ def search():
             }
 
         # IMPORTANTE: Reconstruir la query base porque with_entities() la modificó
-        base_query = search_service.build_search_query(query_text, search_type)
+        base_query = search_service.build_search_query(query_text, search_type, search_fields)
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
@@ -123,7 +126,7 @@ def search():
 
         # 4. Obtener filtros disponibles
         # Reconstruir query base sin ordenamiento ni paginación para los filtros
-        filter_query = search_service.build_search_query(query_text, search_type)
+        filter_query = search_service.build_search_query(query_text, search_type, search_fields)
         if filters:
             filter_query = search_service.apply_filters(filter_query, filters)
 

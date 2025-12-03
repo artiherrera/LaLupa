@@ -104,6 +104,9 @@ def verificar_indices():
     CREATE INDEX IF NOT EXISTS idx_contratos_titulo_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(titulo_contrato, '')));
 
+    CREATE INDEX IF NOT EXISTS idx_contratos_titulo_exp_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(titulo_expediente, '')));
+
     CREATE INDEX IF NOT EXISTS idx_contratos_descripcion_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(descripcion_contrato, '')));
 
@@ -112,6 +115,9 @@ def verificar_indices():
 
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_gin
         ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(institucion, '')));
+
+    CREATE INDEX IF NOT EXISTS idx_contratos_siglas_inst_gin
+        ON contratos.contratos USING gin(to_tsvector('spanish', COALESCE(siglas_institucion, '')));
 
     -- =============================================
     -- ÍNDICES COMPUESTOS PARA AGREGACIONES (GROUP BY + SUM)

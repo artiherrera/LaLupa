@@ -77,25 +77,33 @@
 
         <!-- Barra de búsqueda -->
         <div class="search-container">
-            <!-- Tabs de tipo de búsqueda -->
-            <div class="search-tabs">
-                <button class="search-tab active" data-type="todo" data-placeholder="Buscar en todo: medicamentos, construcción, servicios...">
-                    Todo
-                </button>
-                <button class="search-tab" data-type="institucion" data-placeholder="Buscar institución: IMSS, CFE, PEMEX, Secretaría de Salud...">
-                    Institución
-                </button>
-                <button class="search-tab" data-type="empresa" data-placeholder="Buscar proveedor: Farmacias Guadalajara, IBM, Coca Cola...">
-                    Proveedor
-                </button>
-                <button class="search-tab" data-type="descripcion" data-placeholder="Buscar en descripción: medicamentos, equipos, servicios...">
-                    Descripción
-                </button>
-                <button class="search-tab" data-type="titulo" data-placeholder="Buscar en título del contrato...">
-                    Título
-                </button>
-                <button class="search-tab" data-type="rfc" data-placeholder="Buscar por RFC: ABC123456XYZ...">
-                    RFC
+            <!-- Selector de categorías (multi-select chips) -->
+            <div class="search-categories">
+                <span class="categories-label">Buscar en:</span>
+                <div class="category-chips">
+                    <button class="category-chip active" data-field="descripcion">
+                        <span class="chip-icon">📝</span>
+                        Descripción
+                    </button>
+                    <button class="category-chip active" data-field="titulo">
+                        <span class="chip-icon">📄</span>
+                        Título
+                    </button>
+                    <button class="category-chip active" data-field="empresa">
+                        <span class="chip-icon">🏢</span>
+                        Proveedor
+                    </button>
+                    <button class="category-chip active" data-field="institucion">
+                        <span class="chip-icon">🏛️</span>
+                        Institución
+                    </button>
+                    <button class="category-chip" data-field="rfc">
+                        <span class="chip-icon">🔢</span>
+                        RFC
+                    </button>
+                </div>
+                <button class="toggle-all-btn" onclick="toggleAllCategories()" title="Seleccionar/Deseleccionar todo">
+                    ↻
                 </button>
             </div>
 

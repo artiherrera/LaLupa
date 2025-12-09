@@ -75,6 +75,19 @@ if (document.readyState === 'loading') {
 }
 
 // ===========================
+// Funciones para Changelog/Novedades
+// ===========================
+function toggleChangelog() {
+    const content = document.getElementById('changelogContent');
+    const arrow = document.getElementById('changelogArrow');
+
+    if (content && arrow) {
+        content.classList.toggle('expanded');
+        arrow.classList.toggle('rotated');
+    }
+}
+
+// ===========================
 // Funciones para categorías multi-select
 // ===========================
 function getSelectedCategories() {

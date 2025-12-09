@@ -96,7 +96,8 @@ def search():
                 'total_contratos': 0,
                 'monto_total': 0,
                 'top_proveedores': [],
-                'top_instituciones': []
+                'top_instituciones': [],
+                'contratos_por_anio': []
             }
 
         # Limpiar estado de la sesión antes de ejecutar nuevas queries
@@ -203,6 +204,7 @@ def search():
             'monto_total': agregados['monto_total'],
             'proveedores': agregados['top_proveedores'],
             'instituciones': agregados['top_instituciones'],
+            'contratos_por_anio': agregados.get('contratos_por_anio', []),
             'contratos': [c.to_dict() for c in contratos],
             'filtros_disponibles': filtros_disponibles,
             'page': page,

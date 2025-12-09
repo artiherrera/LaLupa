@@ -88,11 +88,34 @@ class AggregationService:
                     'monto_total': float(i.monto_total or 0)
                 })
 
+            # Contratos por año - para gráfica temporal
+            contratos_por_anio_query = base_query.with_entities(
+                func.extract('year', Contrato.fecha_inicio_contrato).label('anio'),
+                func.count(Contrato.codigo_contrato).label('num_contratos'),
+                func.sum(Contrato.importe).label('monto_total')
+            ).filter(
+                Contrato.fecha_inicio_contrato.isnot(None)
+            ).group_by(
+                func.extract('year', Contrato.fecha_inicio_contrato)
+            ).order_by(
+                func.extract('year', Contrato.fecha_inicio_contrato)
+            )
+
+            contratos_por_anio = []
+            for c in contratos_por_anio_query:
+                if c.anio:
+                    contratos_por_anio.append({
+                        'anio': int(c.anio),
+                        'num_contratos': c.num_contratos,
+                        'monto_total': float(c.monto_total or 0)
+                    })
+
             return {
                 'total_contratos': total_contratos,
                 'monto_total': monto_total,
                 'top_proveedores': proveedores,
-                'top_instituciones': instituciones
+                'top_instituciones': instituciones,
+                'contratos_por_anio': contratos_por_anio
             }
 
         except Exception as e:
@@ -105,7 +128,8 @@ class AggregationService:
                 'total_contratos': 0,
                 'monto_total': 0,
                 'top_proveedores': [],
-                'top_instituciones': []
+                'top_instituciones': [],
+                'contratos_por_anio': []
             }
     
     def get_stats(self):

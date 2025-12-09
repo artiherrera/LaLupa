@@ -85,6 +85,10 @@
             <div class="changelog-content" id="changelogContent">
                 <div class="changelog-item">
                     <span class="changelog-date">9 Dic 2025</span>
+                    <span class="changelog-text">Grafica de contratos por año: visualiza la distribucion temporal de contratos y montos</span>
+                </div>
+                <div class="changelog-item">
+                    <span class="changelog-date">9 Dic 2025</span>
                     <span class="changelog-text">Busqueda multi-categoria: selecciona uno o varios campos para buscar (Descripcion, Titulo, Proveedor, etc.)</span>
                 </div>
                 <div class="changelog-item">
@@ -227,6 +231,14 @@
                         </div>
                     </div>
 
+                    <!-- Gráfica de contratos por año -->
+                    <div id="chartSection" class="chart-section hidden">
+                        <h2>CONTRATOS POR AÑO</h2>
+                        <div class="chart-container">
+                            <canvas id="yearlyChart"></canvas>
+                        </div>
+                    </div>
+
                     <!-- Sección de contratos -->
                     <div id="contratosSection" class="contracts-section hidden">
                         <h2 id="contractsTitle">CONTRATOS</h2>
@@ -256,6 +268,9 @@
     <!-- jsPDF para exportación a PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Chart.js para gráficas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

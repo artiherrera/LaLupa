@@ -2065,6 +2065,30 @@ header h1 {
     transform: translateY(-2px);
 }
 
+/* Gráfica de contratos por año */
+.chart-section {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.chart-section h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--glass-border);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
 /* Contratos como tarjetas (reemplaza tabla) */
 .contracts-section {
     background: var(--surface);

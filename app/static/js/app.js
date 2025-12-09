@@ -502,6 +502,9 @@ function applyFilters() {
 // ===========================
 // Render de agregados
 // ===========================
+// Variable global para la gráfica
+let yearlyChartInstance = null;
+
 function renderAggregates(data, searchType) {
     // Mostrar proveedores
     if (data.proveedores && data.proveedores.length > 0) {
@@ -518,6 +521,112 @@ function renderAggregates(data, searchType) {
     } else {
         document.getElementById('institucionesSection').classList.add('hidden');
     }
+
+    // Mostrar gráfica de contratos por año
+    if (data.contratos_por_anio && data.contratos_por_anio.length > 0) {
+        renderYearlyChart(data.contratos_por_anio);
+        document.getElementById('chartSection').classList.remove('hidden');
+    } else {
+        document.getElementById('chartSection').classList.add('hidden');
+    }
+}
+
+function renderYearlyChart(datosAnuales) {
+    const ctx = document.getElementById('yearlyChart');
+    if (!ctx) return;
+
+    // Destruir gráfica anterior si existe
+    if (yearlyChartInstance) {
+        yearlyChartInstance.destroy();
+    }
+
+    const labels = datosAnuales.map(d => d.anio.toString());
+    const cantidades = datosAnuales.map(d => d.num_contratos);
+    const montos = datosAnuales.map(d => d.monto_total);
+
+    yearlyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Cantidad de Contratos',
+                data: cantidades,
+                backgroundColor: 'rgba(0, 122, 255, 0.7)',
+                borderColor: 'rgba(0, 122, 255, 1)',
+                borderWidth: 1,
+                borderRadius: 4,
+                yAxisID: 'y'
+            }, {
+                label: 'Monto Total (MDP)',
+                data: montos.map(m => m / 1000000), // Convertir a millones
+                type: 'line',
+                borderColor: 'rgba(102, 126, 234, 1)',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.dataset.label.includes('Monto')) {
+                                return context.dataset.label + ': $' + (context.raw).toFixed(2) + ' MDP';
+                            }
+                            return context.dataset.label + ': ' + context.raw.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Cantidad de Contratos'
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Monto (MDP)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
 }
 
 // Variables globales para almacenar todos los datos

@@ -22,16 +22,19 @@ let currentSearchData = null;
 // ===========================
 // Inicialización
 // ===========================
-document.addEventListener('DOMContentLoaded', function() {
+function initializeApp() {
     // Cargar información de la base de datos
     loadDatabaseInfo();
 
     // Event listener para buscar con Enter
-    document.getElementById('searchInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            buscar();
-        }
-    });
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                buscar();
+            }
+        });
+    }
 
     // Event listeners para los chips de categoría (multi-select)
     document.querySelectorAll('.category-chip').forEach(chip => {
@@ -59,7 +62,17 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('searchInput').focus();
         });
     });
-});
+
+    console.log('LaLupa inicializada correctamente');
+}
+
+// Ejecutar inicialización: si el DOM ya cargó, ejecutar inmediatamente; si no, esperar
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    // DOM ya está listo
+    initializeApp();
+}
 
 // ===========================
 // Funciones para categorías multi-select

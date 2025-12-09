@@ -2,8 +2,42 @@
 
 """Servicio de búsqueda de contratos - Optimizado con Full Text Search"""
 import re
+import unicodedata
 from sqlalchemy import or_, and_, func, String
 from app.utils.query_parser import parse_search_query
+
+
+def normalize_accents(text):
+    """
+    Normaliza acentos para búsqueda insensible a acentos.
+    Convierte: García -> Garcia, López -> Lopez, etc.
+    """
+    if not text:
+        return text
+    # NFD descompone caracteres acentuados (á -> a + ́)
+    # Luego filtramos los caracteres de combinación (acentos)
+    normalized = unicodedata.normalize('NFD', text)
+    # Filtrar caracteres de combinación (categoría 'Mn' = Mark, Nonspacing)
+    without_accents = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+    return without_accents
+
+
+def normalize_for_search(text):
+    """
+    Normaliza texto para búsqueda: quita acentos Y caracteres especiales.
+    Convierte: "GARCIA. CHAVEZ" -> "GARCIA CHAVEZ"
+    """
+    if not text:
+        return text
+    # Primero quitar acentos
+    text = normalize_accents(text)
+    # Quitar caracteres especiales (puntos, comas, guiones, etc.)
+    # Mantener solo letras, números y espacios
+    text = re.sub(r'[^\w\s]', ' ', text)
+    # Normalizar espacios múltiples a uno solo
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
 
 class SearchService:
     """Servicio para búsquedas de contratos usando Full Text Search de PostgreSQL"""
@@ -13,19 +47,25 @@ class SearchService:
         """
         Búsqueda usando Full Text Search de PostgreSQL.
         Usa los índices GIN existentes para búsquedas rápidas.
-        El diccionario 'spanish' maneja acentos automáticamente.
+        Normaliza acentos para búsqueda insensible.
         """
+        # Normalizar el término de búsqueda (quitar acentos)
+        normalized_term = normalize_accents(search_term)
         return func.to_tsvector('spanish', func.coalesce(column, '')).op('@@')(
-            func.plainto_tsquery('spanish', search_term)
+            func.plainto_tsquery('spanish', normalized_term)
         )
 
     @staticmethod
     def _fts_match_columns(columns, search_term):
         """
         Búsqueda FTS en múltiples columnas concatenadas.
+        Normaliza acentos para búsqueda insensible.
         """
         if len(columns) == 1:
             return SearchService._fts_match(columns[0], search_term)
+
+        # Normalizar el término de búsqueda (quitar acentos)
+        normalized_term = normalize_accents(search_term)
 
         # Concatenar columnas con espacios
         concatenated = func.coalesce(columns[0], '')
@@ -33,19 +73,39 @@ class SearchService:
             concatenated = concatenated.op('||')(' ').op('||')(func.coalesce(col, ''))
 
         return func.to_tsvector('spanish', concatenated).op('@@')(
-            func.plainto_tsquery('spanish', search_term)
+            func.plainto_tsquery('spanish', normalized_term)
         )
 
     @staticmethod
     def _exact_phrase_match(column, phrase):
         """
-        Búsqueda de frase EXACTA usando ILIKE con unaccent().
-        Insensible a mayúsculas/minúsculas y acentos.
+        Búsqueda de frase EXACTA usando estrategia híbrida:
+        1. FTS para filtrar rápidamente (usa índices GIN)
+        2. ILIKE normalizado para precisión
+
+        Insensible a mayúsculas/minúsculas, acentos y caracteres especiales.
         """
-        # unaccent() quita acentos, ILIKE ignora mayúsculas
-        return func.unaccent(func.coalesce(column, '')).ilike(
-            func.unaccent(f'%{phrase}%')
+        # Normalizar la frase de búsqueda
+        normalized_phrase = normalize_for_search(phrase)
+
+        # Estrategia híbrida: FTS + ILIKE
+        # 1. FTS rápido (usa índice GIN) - filtra candidatos
+        fts_condition = func.to_tsvector('spanish', func.coalesce(column, '')).op('@@')(
+            func.plainto_tsquery('spanish', normalized_phrase)
         )
+
+        # 2. ILIKE con normalización - precisión en la frase exacta
+        accent_from = 'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛñÑ'
+        accent_to = 'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOUnN'
+
+        normalized_column = func.translate(func.coalesce(column, ''), accent_from, accent_to)
+        normalized_column = func.regexp_replace(normalized_column, '[^a-zA-Z0-9 ]', ' ', 'g')
+        normalized_column = func.regexp_replace(normalized_column, ' +', ' ', 'g')
+
+        ilike_condition = normalized_column.ilike(f'%{normalized_phrase}%')
+
+        # Combinar: FTS AND ILIKE (FTS filtra rápido, ILIKE asegura frase exacta)
+        return and_(fts_condition, ilike_condition)
 
     @staticmethod
     def _exact_phrase_match_columns(columns, phrase):

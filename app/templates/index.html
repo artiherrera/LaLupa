@@ -81,26 +81,11 @@
             <div class="search-categories">
                 <span class="categories-label">Buscar en:</span>
                 <div class="category-chips">
-                    <button class="category-chip active" data-field="descripcion">
-                        <span class="chip-icon">📝</span>
-                        Descripción
-                    </button>
-                    <button class="category-chip active" data-field="titulo">
-                        <span class="chip-icon">📄</span>
-                        Título
-                    </button>
-                    <button class="category-chip active" data-field="empresa">
-                        <span class="chip-icon">🏢</span>
-                        Proveedor
-                    </button>
-                    <button class="category-chip active" data-field="institucion">
-                        <span class="chip-icon">🏛️</span>
-                        Institución
-                    </button>
-                    <button class="category-chip" data-field="rfc">
-                        <span class="chip-icon">🔢</span>
-                        RFC
-                    </button>
+                    <button class="category-chip" data-field="descripcion">Descripción</button>
+                    <button class="category-chip" data-field="titulo">Título</button>
+                    <button class="category-chip" data-field="empresa">Proveedor</button>
+                    <button class="category-chip" data-field="institucion">Institución</button>
+                    <button class="category-chip" data-field="rfc">RFC</button>
                 </div>
                 <button class="toggle-all-btn" onclick="toggleAllCategories()" title="Seleccionar/Deseleccionar todo">
                     ↻
@@ -109,7 +94,7 @@
 
             <!-- Barra de búsqueda -->
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Buscar en todo: medicamentos, construcción, servicios..." autofocus>
+                <input type="text" id="searchInput" placeholder="Buscar en todos los campos..." autofocus>
                 <button id="searchBtn" type="button" onclick="buscar()">Buscar</button>
                 <button id="helpBtn" type="button" onclick="toggleSearchHelp()" title="Ayuda de búsqueda">?</button>
             </div>

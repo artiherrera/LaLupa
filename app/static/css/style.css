@@ -172,15 +172,7 @@ header h1 {
     cursor: pointer;
     transition: all 0.25s var(--ease);
     outline: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
     user-select: none;
-}
-
-.category-chip .chip-icon {
-    font-size: 14px;
-    transition: transform 0.25s var(--ease);
 }
 
 .category-chip:hover {
@@ -196,10 +188,6 @@ header h1 {
     color: white;
     font-weight: 600;
     box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
-}
-
-.category-chip.active .chip-icon {
-    transform: scale(1.1);
 }
 
 .category-chip.active:hover {

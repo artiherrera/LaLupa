@@ -7,7 +7,7 @@ let totalCount = 0;
 let isLoadingMore = false;
 let lastQuery = '';
 let lastSearchType = 'todo';  // Mantener para backward compatibility
-let lastSearchFields = ['descripcion', 'titulo', 'empresa', 'institucion'];  // Nuevos campos multi-select
+let lastSearchFields = [];  // Vacío = buscar en todo
 let activeFilters = {};
 let availableFilters = {};
 let currentSortOrder = 'monto_desc';
@@ -69,7 +69,7 @@ function getSelectedCategories() {
     document.querySelectorAll('.category-chip.active').forEach(chip => {
         selected.push(chip.dataset.field);
     });
-    return selected.length > 0 ? selected : ['descripcion', 'titulo', 'empresa', 'institucion']; // Default si ninguno seleccionado
+    return selected; // Si vacío, el backend usará search_type='todo'
 }
 
 function toggleAllCategories() {
@@ -97,8 +97,10 @@ function updateSearchPlaceholder() {
         'rfc': 'RFC'
     };
 
-    if (selected.length === 0 || selected.length === 5) {
-        document.getElementById('searchInput').placeholder = 'Buscar en todo: medicamentos, construcción, servicios...';
+    if (selected.length === 0) {
+        document.getElementById('searchInput').placeholder = 'Buscar en todos los campos...';
+    } else if (selected.length === 5) {
+        document.getElementById('searchInput').placeholder = 'Buscar en todos los campos...';
     } else if (selected.length === 1) {
         document.getElementById('searchInput').placeholder = `Buscar en ${labels[selected[0]]}...`;
     } else {
@@ -986,13 +988,37 @@ async function exportToPDF() {
     btn.textContent = 'Generando PDF...';
 
     try {
-        // Usar datos actuales en pantalla (respetando filtros y elementos ocultos)
+        // Obtener TODOS los proveedores del backend
+        const providersResponse = await fetch('/api/all-providers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: lastQuery,
+                search_type: lastSearchType,
+                filters: activeFilters
+            })
+        });
+        const providersData = await providersResponse.json();
 
-        // Obtener proveedores visibles (excluyendo los que el usuario ocultó)
-        const visibleProviders = allProviders.filter(prov => !hiddenProviders.has(prov.nombre));
+        // Obtener TODAS las instituciones del backend
+        const institutionsResponse = await fetch('/api/all-institutions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: lastQuery,
+                search_type: lastSearchType,
+                filters: activeFilters
+            })
+        });
+        const institutionsData = await institutionsResponse.json();
 
-        // Obtener instituciones visibles (excluyendo las que el usuario ocultó)
-        const visibleInstitutions = allInstitutions.filter(inst => !hiddenInstitutions.has(inst.siglas));
+        // Filtrar proveedores e instituciones ocultos por el usuario
+        const visibleProviders = (providersData.top_proveedores || []).filter(
+            prov => !hiddenProviders.has(prov.nombre)
+        );
+        const visibleInstitutions = (institutionsData.top_instituciones || []).filter(
+            inst => !hiddenInstitutions.has(inst.siglas)
+        );
 
         // Obtener todos los contratos con los filtros aplicados
         const contractsResponse = await fetch('/api/all-contracts', {
@@ -1085,11 +1111,11 @@ async function exportToPDF() {
 
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text('Top Proveedores', margin, currentY);
+        doc.text(`Proveedores (${providers.top_proveedores.length})`, margin, currentY);
         currentY += 10;
 
-        // Tabla de proveedores
-        const providerData = providers.top_proveedores.slice(0, 50).map(p => [
+        // Tabla de proveedores (TODOS, sin límite)
+        const providerData = providers.top_proveedores.map(p => [
             p.nombre,
             p.rfc,
             p.num_contratos.toString(),
@@ -1118,11 +1144,11 @@ async function exportToPDF() {
         // Instituciones (fluye continuo)
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
-        doc.text('Top Instituciones', margin, currentY);
+        doc.text(`Instituciones (${institutions.top_instituciones.length})`, margin, currentY);
         currentY += 10;
 
-        // Tabla de instituciones
-        const institutionData = institutions.top_instituciones.slice(0, 50).map(i => [
+        // Tabla de instituciones (TODAS, sin límite)
+        const institutionData = institutions.top_instituciones.map(i => [
             i.siglas,
             i.nombre,
             i.num_contratos.toString(),

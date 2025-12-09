@@ -7,7 +7,7 @@ from app.services.search_service import SearchService
 from app.services.aggregation_service import AggregationService
 from app.services.filter_service import FilterService
 from app import db
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 import logging
 import time
 
@@ -56,6 +56,12 @@ def search():
 
         filters = data.get('filters', {})
 
+        # Limpiar sesión antes de cualquier query
+        try:
+            db.session.expire_all()
+        except:
+            pass
+
         # Obtener parámetros de paginación y ordenamiento
         page = data.get('page', 1)
         per_page = data.get('per_page', 50)
@@ -78,6 +84,7 @@ def search():
         aggregation_service = AggregationService()
         try:
             agregados = aggregation_service.obtener_agregados_optimizado(base_query)
+            logger.debug(f"Agregados obtenidos: total={agregados['total_contratos']}")
         except Exception as agg_error:
             logger.error(f"Error en agregados: {str(agg_error)}")
             try:
@@ -92,10 +99,17 @@ def search():
                 'top_instituciones': []
             }
 
+        # Limpiar estado de la sesión antes de ejecutar nuevas queries
+        try:
+            db.session.expire_all()
+        except:
+            pass
+
         # IMPORTANTE: Reconstruir la query base porque with_entities() la modificó
         base_query = search_service.build_search_query(query_text, search_type, search_fields)
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
+
 
         # 2. Aplicar ordenamiento según el parámetro
         if sort_order == 'monto_desc':
@@ -111,7 +125,45 @@ def search():
         # 3. Aplicar paginación
         offset = (page - 1) * per_page
         try:
+            # Verificar conteo antes de paginar
+            contratos_count = base_query.count()
+
+            # IMPORTANTE: Comparar con el total de agregación para detectar discrepancias
+            if contratos_count != agregados['total_contratos']:
+                logger.warning(
+                    f"DISCREPANCIA DETECTADA: Agregación reporta {agregados['total_contratos']} "
+                    f"pero query reconstruida tiene {contratos_count} contratos. "
+                    f"Query: {query_text}, search_type: {search_type}, search_fields: {search_fields}"
+                )
+
             contratos = base_query.offset(offset).limit(per_page).all()
+            logger.info(f"Contratos retornados (página {page}): {len(contratos)} de {contratos_count} total")
+
+            # Detectar discrepancia entre count y fetch
+            if len(contratos) != min(per_page, contratos_count - offset):
+                expected = min(per_page, contratos_count - offset)
+                logger.warning(
+                    f"DISCREPANCIA EN FETCH: count={contratos_count}, offset={offset}, "
+                    f"esperados={expected}, obtenidos={len(contratos)}"
+                )
+                # Obtener IDs para debugging
+                try:
+                    ids_query = search_service.build_search_query(query_text, search_type, search_fields)
+                    if filters:
+                        ids_query = search_service.apply_filters(ids_query, filters)
+                    all_ids = [c.codigo_contrato for c in ids_query.with_entities(Contrato.codigo_contrato).all()]
+                    fetched_ids = [c.codigo_contrato for c in contratos]
+                    missing_ids = set(all_ids) - set(fetched_ids)
+                    # Detectar duplicados
+                    unique_ids = len(set(all_ids))
+                    if unique_ids != len(all_ids):
+                        from collections import Counter
+                        id_counts = Counter(all_ids)
+                        duplicates = {k: v for k, v in id_counts.items() if v > 1}
+                        logger.warning(f"DUPLICADOS DETECTADOS: {len(all_ids)} IDs pero solo {unique_ids} únicos. Duplicados: {duplicates}")
+                    logger.warning(f"IDs en query: {len(all_ids)}, IDs únicos: {unique_ids}, IDs obtenidos: {len(fetched_ids)}, Faltantes: {missing_ids}")
+                except Exception as debug_error:
+                    logger.error(f"Error en debug de IDs: {str(debug_error)}")
         except Exception as query_error:
             logger.error(f"Error en query de contratos: {str(query_error)}")
             try:
@@ -249,16 +301,25 @@ def get_all_providers():
         # Obtener TODOS los proveedores (sin límite) - usando with_entities()
         from app.models import Contrato
 
+        # Agrupar por RFC cuando es válido para evitar duplicados por variaciones de nombre
+        rfc_group_key = case(
+            (and_(
+                Contrato.rfc.isnot(None),
+                Contrato.rfc != 'XAXX010101000',
+                Contrato.rfc != ''
+            ), Contrato.rfc),
+            else_=Contrato.proveedor_contratista
+        )
+
         proveedores_query = base_query.with_entities(
-            Contrato.proveedor_contratista.label('nombre'),
-            Contrato.rfc.label('rfc'),
+            func.max(Contrato.proveedor_contratista).label('nombre'),
+            func.max(Contrato.rfc).label('rfc'),
             func.count(Contrato.codigo_contrato).label('num_contratos'),
             func.sum(Contrato.importe).label('monto_total')
         ).filter(
             Contrato.proveedor_contratista.isnot(None)
         ).group_by(
-            Contrato.proveedor_contratista,
-            Contrato.rfc
+            rfc_group_key
         ).order_by(
             func.sum(Contrato.importe).desc().nullslast()
         ).all()  # SIN LÍMITE

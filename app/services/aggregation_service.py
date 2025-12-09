@@ -1,7 +1,7 @@
 # app/services/aggregation_service.py
 
 """Servicio de agregación de datos - Optimizado sin subqueries"""
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 from app import db
 import logging
 
@@ -28,18 +28,29 @@ class AggregationService:
 
             total_contratos = totales.total or 0
             monto_total = float(totales.monto_total or 0)
+            logger.debug(f"[Agregación] Total contratos base: {total_contratos}")
 
             # Top 20 proveedores - query directa con GROUP BY
+            # Agrupar por RFC cuando es válido para evitar duplicados por variaciones de nombre
+            # Ej: "ASTRAZENECA SA DE CV" y "ASTRAZENECA" con mismo RFC se combinan
+            rfc_group_key = case(
+                (and_(
+                    Contrato.rfc.isnot(None),
+                    Contrato.rfc != 'XAXX010101000',
+                    Contrato.rfc != ''
+                ), Contrato.rfc),
+                else_=Contrato.proveedor_contratista
+            )
+
             proveedores_query = base_query.with_entities(
-                Contrato.proveedor_contratista.label('nombre'),
-                Contrato.rfc.label('rfc'),
+                func.max(Contrato.proveedor_contratista).label('nombre'),  # MAX obtiene el nombre más completo
+                func.max(Contrato.rfc).label('rfc'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
                 func.sum(Contrato.importe).label('monto_total')
             ).filter(
                 Contrato.proveedor_contratista.isnot(None)
             ).group_by(
-                Contrato.proveedor_contratista,
-                Contrato.rfc
+                rfc_group_key  # Agrupa por RFC si es válido, sino por nombre
             ).order_by(
                 func.sum(Contrato.importe).desc().nullslast()
             ).limit(20)
@@ -86,6 +97,10 @@ class AggregationService:
 
         except Exception as e:
             logger.error(f"Error en agregados: {str(e)}")
+            try:
+                db.session.rollback()
+            except:
+                pass
             return {
                 'total_contratos': 0,
                 'monto_total': 0,

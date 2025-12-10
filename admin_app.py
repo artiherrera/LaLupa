@@ -127,6 +127,15 @@ def verificar_indices():
 
     CREATE INDEX IF NOT EXISTS idx_contratos_institucion_importe
         ON contratos.contratos(siglas_institucion, institucion, importe);
+
+    -- =============================================
+    -- ÍNDICE COMBINADO PARA BÚSQUEDA MULTI-COLUMNA
+    -- =============================================
+    CREATE INDEX IF NOT EXISTS idx_contratos_desc_titulo_fts
+        ON contratos.contratos USING gin(to_tsvector('spanish',
+            COALESCE(descripcion_contrato, '') || ' ' ||
+            COALESCE(titulo_contrato, '') || ' ' ||
+            COALESCE(titulo_expediente, '')));
     """
 
     try:

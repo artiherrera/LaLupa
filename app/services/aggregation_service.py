@@ -89,26 +89,31 @@ class AggregationService:
                 })
 
             # Contratos por año - para gráfica temporal
+            # Usar anio_fuente que es más confiable (viene del archivo fuente)
             contratos_por_anio_query = base_query.with_entities(
-                func.extract('year', Contrato.fecha_inicio_contrato).label('anio'),
+                Contrato.anio_fuente.label('anio'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
                 func.sum(Contrato.importe).label('monto_total')
             ).filter(
-                Contrato.fecha_inicio_contrato.isnot(None)
+                Contrato.anio_fuente.isnot(None)
             ).group_by(
-                func.extract('year', Contrato.fecha_inicio_contrato)
+                Contrato.anio_fuente
             ).order_by(
-                func.extract('year', Contrato.fecha_inicio_contrato)
+                Contrato.anio_fuente
             )
 
             contratos_por_anio = []
             for c in contratos_por_anio_query:
                 if c.anio:
-                    contratos_por_anio.append({
-                        'anio': int(c.anio),
-                        'num_contratos': c.num_contratos,
-                        'monto_total': float(c.monto_total or 0)
-                    })
+                    try:
+                        anio_int = int(c.anio)
+                        contratos_por_anio.append({
+                            'anio': anio_int,
+                            'num_contratos': c.num_contratos,
+                            'monto_total': float(c.monto_total or 0)
+                        })
+                    except (ValueError, TypeError):
+                        pass  # Ignorar años no válidos
 
             return {
                 'total_contratos': total_contratos,

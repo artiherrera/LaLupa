@@ -84,15 +84,16 @@ class QueryParser:
 
     def _extract_exclude_terms(self, query: str) -> str:
         """Extrae términos que empiezan con -"""
-        # Regex para encontrar -palabra (pero no -- o espacios)
-        pattern = r'-(\w+)'
+        # Regex para encontrar -palabra o " - palabra" (con espacio opcional antes)
+        # Captura el término después del guión
+        pattern = r'(?:^|\s)-\s*(\w+)'
         matches = re.findall(pattern, query)
 
         for match in matches:
             self.exclude_terms.append(match.strip())
 
-        # Remover los términos excluidos del query
-        query = re.sub(pattern, '', query)
+        # Remover los términos excluidos del query (incluyendo espacio antes si existe)
+        query = re.sub(r'(?:^|\s)-\s*\w+', ' ', query)
         return query
 
     def _extract_or_groups(self, query: str) -> str:

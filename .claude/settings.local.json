@@ -12,7 +12,12 @@
       "Bash(git push:*)",
       "Bash(source:*)",
       "Bash(pip install:*)",
-      "Bash(python scripts/setup_auth.py:*)"
+      "Bash(python scripts/setup_auth.py:*)",
+      "Bash(pip freeze:*)",
+      "Bash(cat:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(node --check:*)"
     ],
     "deny": [],
     "ask": []

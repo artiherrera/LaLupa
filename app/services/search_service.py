@@ -58,18 +58,25 @@ class SearchService:
     @staticmethod
     def _fts_match_columns(columns, search_term):
         """
-        Búsqueda FTS en múltiples columnas usando OR.
-        Cada columna usa su propio índice GIN para máxima velocidad.
+        Búsqueda FTS en múltiples columnas.
+        - 1 columna: usa índice GIN directamente
+        - Múltiples columnas: concatena para buscar palabras distribuidas entre columnas
         """
         if len(columns) == 1:
             return SearchService._fts_match(columns[0], search_term)
 
-        # Usar OR entre columnas - cada una puede usar su índice GIN
-        or_conditions = []
-        for col in columns:
-            or_conditions.append(SearchService._fts_match(col, search_term))
+        # Normalizar el término de búsqueda (quitar acentos)
+        normalized_term = normalize_accents(search_term)
 
-        return or_(*or_conditions)
+        # Concatenar columnas - permite encontrar palabras distribuidas entre columnas
+        # Ej: "Publicidad" en descripcion + "Campaña" en titulo = match
+        concatenated = func.coalesce(columns[0], '')
+        for col in columns[1:]:
+            concatenated = concatenated.op('||')(' ').op('||')(func.coalesce(col, ''))
+
+        return func.to_tsvector('spanish', concatenated).op('@@')(
+            func.plainto_tsquery('spanish', normalized_term)
+        )
 
     @staticmethod
     def _exact_phrase_match(column, phrase):

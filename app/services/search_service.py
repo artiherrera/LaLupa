@@ -81,20 +81,22 @@ class SearchService:
     @staticmethod
     def _exact_phrase_match(column, phrase):
         """
-        Búsqueda de frase EXACTA usando ILIKE normalizado.
+        Búsqueda de frase EXACTA usando solo ILIKE normalizado.
 
-        NO usa FTS porque el analizador español elimina stopwords (de, y, el, etc.)
-        causando falsos negativos en frases como "SERVICIO DE MENSAJERÍA Y PAQUETERÍA".
+        FTS no funciona bien para frases exactas porque:
+        1. 'spanish' remueve stopwords (de, y) y hace stemming inconsistente con acentos
+        2. Sin índice en columna normalizada, FTS es tan lento como ILIKE
 
-        Insensible a mayúsculas/minúsculas, acentos y caracteres especiales.
+        ILIKE normalizado es más lento pero preciso para frases exactas.
         """
-        # Normalizar la frase de búsqueda
+        # Normalizar la frase de búsqueda (quitar acentos y caracteres especiales)
         normalized_phrase = normalize_for_search(phrase)
 
-        # ILIKE con normalización completa
+        # Normalización de acentos
         accent_from = 'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛñÑ'
         accent_to = 'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOUnN'
 
+        # ILIKE con normalización completa
         normalized_column = func.translate(func.coalesce(column, ''), accent_from, accent_to)
         normalized_column = func.regexp_replace(normalized_column, '[^a-zA-Z0-9 ]', ' ', 'g')
         normalized_column = func.regexp_replace(normalized_column, ' +', ' ', 'g')

@@ -81,22 +81,17 @@ class SearchService:
     @staticmethod
     def _exact_phrase_match(column, phrase):
         """
-        Búsqueda de frase EXACTA usando estrategia híbrida:
-        1. FTS para filtrar rápidamente (usa índices GIN)
-        2. ILIKE normalizado para precisión
+        Búsqueda de frase EXACTA usando ILIKE normalizado.
+
+        NO usa FTS porque el analizador español elimina stopwords (de, y, el, etc.)
+        causando falsos negativos en frases como "SERVICIO DE MENSAJERÍA Y PAQUETERÍA".
 
         Insensible a mayúsculas/minúsculas, acentos y caracteres especiales.
         """
         # Normalizar la frase de búsqueda
         normalized_phrase = normalize_for_search(phrase)
 
-        # Estrategia híbrida: FTS + ILIKE
-        # 1. FTS rápido (usa índice GIN) - filtra candidatos
-        fts_condition = func.to_tsvector('spanish', func.coalesce(column, '')).op('@@')(
-            func.plainto_tsquery('spanish', normalized_phrase)
-        )
-
-        # 2. ILIKE con normalización - precisión en la frase exacta
+        # ILIKE con normalización completa
         accent_from = 'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛñÑ'
         accent_to = 'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOUnN'
 
@@ -104,10 +99,7 @@ class SearchService:
         normalized_column = func.regexp_replace(normalized_column, '[^a-zA-Z0-9 ]', ' ', 'g')
         normalized_column = func.regexp_replace(normalized_column, ' +', ' ', 'g')
 
-        ilike_condition = normalized_column.ilike(f'%{normalized_phrase}%')
-
-        # Combinar: FTS AND ILIKE (FTS filtra rápido, ILIKE asegura frase exacta)
-        return and_(fts_condition, ilike_condition)
+        return normalized_column.ilike(f'%{normalized_phrase}%')
 
     @staticmethod
     def _exact_phrase_match_columns(columns, phrase):

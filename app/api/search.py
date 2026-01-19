@@ -370,18 +370,18 @@ def get_all_institutions():
             base_query = search_service.apply_filters(base_query, filters)
 
         # Obtener TODAS las instituciones (sin límite) - usando with_entities()
+        # IMPORTANTE: Agrupar SOLO por siglas para evitar duplicados
         from app.models import Contrato
 
         instituciones_query = base_query.with_entities(
-            Contrato.institucion.label('nombre'),
+            func.max(Contrato.institucion).label('nombre'),  # MAX obtiene el nombre más completo
             Contrato.siglas_institucion.label('siglas'),
             func.count(Contrato.codigo_contrato).label('num_contratos'),
             func.sum(Contrato.importe).label('monto_total')
         ).filter(
             Contrato.siglas_institucion.isnot(None)
         ).group_by(
-            Contrato.institucion,
-            Contrato.siglas_institucion
+            Contrato.siglas_institucion  # Solo agrupar por siglas
         ).order_by(
             func.sum(Contrato.importe).desc().nullslast()
         ).all()  # SIN LÍMITE

@@ -28,7 +28,7 @@ class AggregationService:
 
             total_contratos = totales.total or 0
             monto_total = float(totales.monto_total or 0)
-            logger.debug(f"[Agregación] Total contratos base: {total_contratos}")
+            logger.info(f"[Agregación] Total contratos: {total_contratos}, Monto total: ${monto_total:,.2f}")
 
             # Top 20 proveedores - query directa con GROUP BY
             # Agrupar por RFC cuando es válido para evitar duplicados por variaciones de nombre
@@ -65,16 +65,18 @@ class AggregationService:
                 })
 
             # Top 20 instituciones - query directa con GROUP BY
+            # IMPORTANTE: Agrupar SOLO por siglas_institucion para evitar duplicados
+            # cuando la misma institución tiene variaciones en el nombre largo
+            # Ej: "INSTITUTO MEXICANO DEL SEGURO SOCIAL" vs "INST. MEX. DEL SEGURO SOCIAL"
             instituciones_query = base_query.with_entities(
-                Contrato.institucion.label('nombre'),
+                func.max(Contrato.institucion).label('nombre'),  # MAX obtiene el nombre más completo
                 Contrato.siglas_institucion.label('siglas'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
                 func.sum(Contrato.importe).label('monto_total')
             ).filter(
                 Contrato.siglas_institucion.isnot(None)
             ).group_by(
-                Contrato.institucion,
-                Contrato.siglas_institucion
+                Contrato.siglas_institucion  # Solo agrupar por siglas
             ).order_by(
                 func.sum(Contrato.importe).desc().nullslast()
             ).limit(20)
@@ -87,6 +89,22 @@ class AggregationService:
                     'num_contratos': i.num_contratos,
                     'monto_total': float(i.monto_total or 0)
                 })
+
+            # Verificar que las sumas coincidan con los totales
+            sum_prov_contratos = sum(p['num_contratos'] for p in proveedores)
+            sum_prov_monto = sum(p['monto_total'] for p in proveedores)
+            sum_inst_contratos = sum(i['num_contratos'] for i in instituciones)
+            sum_inst_monto = sum(i['monto_total'] for i in instituciones)
+
+            # Log de verificación (solo si hay discrepancia significativa)
+            if sum_prov_contratos != total_contratos or sum_inst_contratos != total_contratos:
+                logger.warning(
+                    f"[Agregación] DISCREPANCIA: Total={total_contratos}, "
+                    f"Sum proveedores={sum_prov_contratos}, Sum instituciones={sum_inst_contratos} "
+                    f"(Nota: puede ser normal si hay NULL siglas o límite de 20)"
+                )
+            else:
+                logger.debug(f"[Agregación] Sumas verificadas OK: {total_contratos} contratos")
 
             # Contratos por año - para gráfica temporal
             # Usar anio_fuente que es más confiable (viene del archivo fuente)

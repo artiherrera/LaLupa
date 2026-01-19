@@ -118,6 +118,8 @@ def search():
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
+        # Asegurar que no haya duplicados (pueden existir por datos duplicados en BD)
+        base_query = base_query.distinct()
 
         # 2. Aplicar ordenamiento según el parámetro
         if sort_order == 'monto_desc':

@@ -21,19 +21,20 @@ class AggregationService:
         try:
             from app.models import Contrato
 
-            # Helper para obtener una query fresca
+            # Helper para obtener una query fresca con DISTINCT para evitar duplicados
             def get_fresh_query():
                 if search_service and query_text:
                     q = search_service.build_search_query(query_text, search_type, search_fields)
                     if filters:
                         q = search_service.apply_filters(q, filters)
-                    return q
-                return base_query
+                    return q.distinct()
+                return base_query.distinct()
 
             # Total de contratos y monto total - usando query fresca
+            # Usar COUNT(DISTINCT) para evitar contar duplicados
             fresh_query = get_fresh_query()
             totales = fresh_query.with_entities(
-                func.count(Contrato.codigo_contrato).label('total'),
+                func.count(func.distinct(Contrato.codigo_contrato)).label('total'),
                 func.sum(Contrato.importe).label('monto_total')
             ).first()
 

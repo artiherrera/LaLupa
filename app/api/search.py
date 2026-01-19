@@ -7,7 +7,7 @@ from app.services.search_service import SearchService
 from app.services.aggregation_service import AggregationService
 from app.services.filter_service import FilterService
 from app import db
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 import logging
 import time
 
@@ -301,18 +301,27 @@ def get_all_providers():
             base_query = search_service.apply_filters(base_query, filters)
 
         # Obtener TODOS los proveedores (sin límite) - usando with_entities()
-        # IMPORTANTE: Agrupar por nombre de proveedor para evitar duplicados
+        # IMPORTANTE: Agrupar por RFC cuando es válido para consolidar variaciones de nombre
         from app.models import Contrato
 
+        rfc_group_key = case(
+            (and_(
+                Contrato.rfc.isnot(None),
+                Contrato.rfc != 'XAXX010101000',
+                Contrato.rfc != ''
+            ), Contrato.rfc),
+            else_=Contrato.proveedor_contratista
+        )
+
         proveedores_query = base_query.with_entities(
-            Contrato.proveedor_contratista.label('nombre'),
-            func.max(Contrato.rfc).label('rfc'),  # MAX obtiene un RFC válido si existe
+            func.max(Contrato.proveedor_contratista).label('nombre'),
+            func.max(Contrato.rfc).label('rfc'),
             func.count(Contrato.codigo_contrato).label('num_contratos'),
             func.sum(Contrato.importe).label('monto_total')
         ).filter(
             Contrato.proveedor_contratista.isnot(None)
         ).group_by(
-            Contrato.proveedor_contratista  # Agrupar solo por nombre
+            rfc_group_key  # Agrupa por RFC si es válido, sino por nombre
         ).order_by(
             func.sum(Contrato.importe).desc().nullslast()
         ).all()  # SIN LÍMITE

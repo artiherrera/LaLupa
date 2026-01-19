@@ -1,7 +1,7 @@
 # app/services/aggregation_service.py
 
 """Servicio de agregación de datos - Optimizado sin subqueries"""
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 from app import db
 import logging
 
@@ -31,17 +31,26 @@ class AggregationService:
             logger.info(f"[Agregación] Total contratos: {total_contratos}, Monto total: ${monto_total:,.2f}")
 
             # Top 20 proveedores - query directa con GROUP BY
-            # IMPORTANTE: Agrupar por nombre de proveedor para evitar duplicados
-            # cuando el mismo proveedor tiene diferentes RFCs o RFC nulo
+            # IMPORTANTE: Agrupar por RFC cuando es válido para consolidar variaciones de nombre
+            # Ej: "AGITPROP IGLESIAS & ARMENDARIZ" y "AGITPROP IGLESIAS ARMENDARIZ" con mismo RFC
+            rfc_group_key = case(
+                (and_(
+                    Contrato.rfc.isnot(None),
+                    Contrato.rfc != 'XAXX010101000',
+                    Contrato.rfc != ''
+                ), Contrato.rfc),
+                else_=Contrato.proveedor_contratista
+            )
+
             proveedores_query = base_query.with_entities(
-                Contrato.proveedor_contratista.label('nombre'),
-                func.max(Contrato.rfc).label('rfc'),  # MAX obtiene un RFC válido si existe
+                func.max(Contrato.proveedor_contratista).label('nombre'),  # MAX obtiene el nombre más largo
+                func.max(Contrato.rfc).label('rfc'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
                 func.sum(Contrato.importe).label('monto_total')
             ).filter(
                 Contrato.proveedor_contratista.isnot(None)
             ).group_by(
-                Contrato.proveedor_contratista  # Agrupar solo por nombre
+                rfc_group_key  # Agrupa por RFC si es válido, sino por nombre
             ).order_by(
                 func.sum(Contrato.importe).desc().nullslast()
             ).limit(20)

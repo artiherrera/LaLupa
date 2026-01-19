@@ -80,10 +80,17 @@ def search():
         logger.info(f"Búsqueda: {query_text}, campos: {search_fields or search_type}, filtros: {filters}, página: {page}, orden: {sort_order}")
 
         # 1. Obtener agregados COMPLETOS de TODOS los resultados
-        # IMPORTANTE: with_entities() modifica la query, así que necesitamos reconstruirla después
+        # IMPORTANTE: Pasamos los parámetros para que cada agregación use query fresca
         aggregation_service = AggregationService()
         try:
-            agregados = aggregation_service.obtener_agregados_optimizado(base_query)
+            agregados = aggregation_service.obtener_agregados_optimizado(
+                base_query,
+                search_service=search_service,
+                query_text=query_text,
+                search_type=search_type,
+                search_fields=search_fields,
+                filters=filters
+            )
             logger.debug(f"Agregados obtenidos: total={agregados['total_contratos']}")
         except Exception as agg_error:
             logger.error(f"Error en agregados: {str(agg_error)}")
@@ -262,9 +269,15 @@ def get_aggregates_only():
         if filters:
             base_query = search_service.apply_filters(base_query, filters)
 
-        # Obtener agregados completos
+        # Obtener agregados completos (con parámetros para queries frescas)
         aggregation_service = AggregationService()
-        agregados = aggregation_service.obtener_agregados_optimizado(base_query)
+        agregados = aggregation_service.obtener_agregados_optimizado(
+            base_query,
+            search_service=search_service,
+            query_text=query_text,
+            search_type=search_type,
+            filters=filters
+        )
 
         return jsonify(agregados)
 

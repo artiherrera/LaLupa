@@ -10,18 +10,29 @@ logger = logging.getLogger(__name__)
 class AggregationService:
     """Servicio para agregaciones y estadísticas"""
 
-    def obtener_agregados_optimizado(self, base_query):
+    def obtener_agregados_optimizado(self, base_query, search_service=None, query_text=None, search_type=None, search_fields=None, filters=None):
         """
         Obtiene agregados usando with_entities() en lugar de subquery().
         Esto permite a PostgreSQL optimizar la query completa y usar índices.
+
+        IMPORTANTE: Si se proporcionan los parámetros de búsqueda, reconstruye
+        queries frescas para cada agregación para evitar problemas de estado.
         """
         try:
             from app.models import Contrato
 
-            # Total de contratos y monto total - usando with_entities()
-            # Esto es MUCHO más eficiente que subquery() porque PostgreSQL
-            # puede optimizar la query completa de una vez
-            totales = base_query.with_entities(
+            # Helper para obtener una query fresca
+            def get_fresh_query():
+                if search_service and query_text:
+                    q = search_service.build_search_query(query_text, search_type, search_fields)
+                    if filters:
+                        q = search_service.apply_filters(q, filters)
+                    return q
+                return base_query
+
+            # Total de contratos y monto total - usando query fresca
+            fresh_query = get_fresh_query()
+            totales = fresh_query.with_entities(
                 func.count(Contrato.codigo_contrato).label('total'),
                 func.sum(Contrato.importe).label('monto_total')
             ).first()
@@ -30,7 +41,7 @@ class AggregationService:
             monto_total = float(totales.monto_total or 0)
             logger.info(f"[Agregación] Total contratos: {total_contratos}, Monto total: ${monto_total:,.2f}")
 
-            # Top 20 proveedores - query directa con GROUP BY
+            # Top 20 proveedores - query directa con GROUP BY (usando query fresca)
             # IMPORTANTE: Agrupar por RFC cuando es válido para consolidar variaciones de nombre
             # Ej: "AGITPROP IGLESIAS & ARMENDARIZ" y "AGITPROP IGLESIAS ARMENDARIZ" con mismo RFC
             rfc_group_key = case(
@@ -42,7 +53,7 @@ class AggregationService:
                 else_=Contrato.proveedor_contratista
             )
 
-            proveedores_query = base_query.with_entities(
+            proveedores_query = get_fresh_query().with_entities(
                 func.max(Contrato.proveedor_contratista).label('nombre'),  # MAX obtiene el nombre más largo
                 func.max(Contrato.rfc).label('rfc'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
@@ -64,11 +75,11 @@ class AggregationService:
                     'monto_total': float(p.monto_total or 0)
                 })
 
-            # Top 20 instituciones - query directa con GROUP BY
+            # Top 20 instituciones - query directa con GROUP BY (usando query fresca)
             # IMPORTANTE: Agrupar SOLO por siglas_institucion para evitar duplicados
             # cuando la misma institución tiene variaciones en el nombre largo
             # Ej: "INSTITUTO MEXICANO DEL SEGURO SOCIAL" vs "INST. MEX. DEL SEGURO SOCIAL"
-            instituciones_query = base_query.with_entities(
+            instituciones_query = get_fresh_query().with_entities(
                 func.max(Contrato.institucion).label('nombre'),  # MAX obtiene el nombre más completo
                 Contrato.siglas_institucion.label('siglas'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
@@ -106,9 +117,9 @@ class AggregationService:
             else:
                 logger.debug(f"[Agregación] Sumas verificadas OK: {total_contratos} contratos")
 
-            # Contratos por año - para gráfica temporal
+            # Contratos por año - para gráfica temporal (usando query fresca)
             # Usar anio_fuente que es más confiable (viene del archivo fuente)
-            contratos_por_anio_query = base_query.with_entities(
+            contratos_por_anio_query = get_fresh_query().with_entities(
                 Contrato.anio_fuente.label('anio'),
                 func.count(Contrato.codigo_contrato).label('num_contratos'),
                 func.sum(Contrato.importe).label('monto_total')
